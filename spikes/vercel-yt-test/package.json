@@ -1,9 +1,0 @@
-{
-  "name": "karaoke-vercel-yt-test",
-  "private": true,
-  "type": "module",
-  "engines": { "node": "22.x" },
-  "scripts": {
-    "local": "node local.mjs"
-  }
-}
