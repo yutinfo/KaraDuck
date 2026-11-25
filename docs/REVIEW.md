@@ -49,7 +49,7 @@
 | C2 | กลาง | UI และ CSS ซ้ำระหว่างจอหลักกับมือถือ ควรรวมชิ้นส่วนร่วม | **ยังไม่แก้** — `public/js/app.js` และ `public/js/remote.js` ยังมี toast, tile, queue row และ icons แยกกัน; มี `public/tokens.css` และ api.js ร่วมแล้ว แต่ยังไม่รวม UI |
 | C3 | กลาง | เซิร์ฟเวอร์ import ตรรกะจาก public/js ควรย้าย shared หรือเขียนเหตุผล | **แก้แล้ว** — คงตรรกะล้วนใน `public/js/store.js`, `public/js/commands.js` ให้ server/หน้า demo ใช้ชุดเดียว (`lib/room-doc.mjs`, `lib/room-service.mjs`) README และ DESIGN ระบุเหตุผลแล้ว `vercel.json` แนบสองไฟล์นี้ในฟังก์ชัน |
 | C4 | สูง | ขาดเทสต์หน้าเว็บ ควรเริ่มจากตรรกะที่แยกได้และ EventSource ปลอม | **ยังไม่แก้** — มี `test/session.test.mjs`, `test/room-merge.test.mjs`, `test/drag-sort.test.mjs`, `test/admin-view.test.mjs` แล้ว แต่ไม่มีเทสต์ sync.js ด้วย EventSource ปลอม และยังไม่ครอบคลุมวงจร player/DOM ของ app.js/remote.js |
-| C5 | ต่ำ | ขาด LICENSE, .editorconfig และ lint | **ยังไม่แก้** — ยังไม่มี LICENSE, .editorconfig หรือคำสั่ง lint ใน `package.json` |
+| C5 | ต่ำ | ขาด LICENSE, .editorconfig และ lint | **ยังไม่แก้** — มี LICENSE (MIT) แล้ว ยังไม่มี .editorconfig หรือคำสั่ง lint ใน `package.json` |
 | C6 | — | README | **แก้แล้ว** — `README.md` อธิบาย KaraDuck ออนไลน์ วิธีรัน ตั้งค่า เพดาน เครื่องมือ และ npm test ตามโค้ดปัจจุบัน |
 
 ## D. แบบและแผนออนไลน์
