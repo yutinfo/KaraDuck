@@ -7,7 +7,7 @@ import { createIdTokenVerifier } from '../lib/firebase-id-token.mjs';
 const cert = await readFile(new URL('./fixtures/idtoken-cert.pem', import.meta.url), 'utf8');
 const key = await readFile(new URL('./fixtures/idtoken-key.pem', import.meta.url), 'utf8');
 const at = 1_800_000_000_000;
-const claims = { aud: 'karaduck-3935d', iss: 'https://securetoken.google.com/karaduck-3935d',
+const claims = { aud: 'your-project-id', iss: 'https://securetoken.google.com/your-project-id',
   sub: 'user-123', exp: at / 1000 + 3600, iat: at / 1000, auth_time: at / 1000,
   email: 'owner@example.test', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
 function token(overrides = {}, header = {}) {

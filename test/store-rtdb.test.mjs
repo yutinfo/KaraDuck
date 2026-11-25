@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRtdbStore } from '../lib/store-rtdb.mjs';
 
-const dbUrl = 'https://karaduck-3935d-default-rtdb.asia-southeast1.firebasedatabase.app';
+const dbUrl = 'https://your-project-id-default-rtdb.asia-southeast1.firebasedatabase.app';
 const roomId = 'ABCDEFGHJKLMNPQR';
 function setup(responses) {
   const calls = [];

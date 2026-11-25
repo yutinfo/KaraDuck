@@ -1,6 +1,6 @@
 # KaraDuck — คาราโอเกะจาก YouTube
 
-[คู่มือการใช้งานภาษาไทยสำหรับแขก เจ้าของห้อง และผู้ดูแลระบบ](docs/MANUAL.md)
+[คู่มือการใช้งาน](docs/MANUAL.md) · [ติดตั้งเอง](docs/INSTALL.md) · [สัญญาของระบบ](docs/DESIGN.md)
 
 ![โลโก้ KaraDuck](public/logo.svg)
 
@@ -8,9 +8,11 @@ KaraDuck เป็นเว็บคาราโอเกะหลายห้�
 แต่ละห้องมีคิว ประวัติ และลิงก์แยกกัน ระบบออนไลน์ใช้ Vercel กับ Firebase Realtime Database
 ไม่มี dependency จาก npm และไม่มีขั้น build ใช้ Node.js 22 ขึ้นไป
 
+โปรเจกต์นี้ไม่มีเว็บกลางให้ใช้ ต้องติดตั้งเองบน Vercel และ Firebase ของคุณ ดูขั้นตอนตั้งแต่ศูนย์ใน [คู่มือติดตั้ง](docs/INSTALL.md)
+
 ## ใช้งานบนเว็บ
 
-เปิด [KaraDuck](https://karaduck.vercel.app) แล้วตั้งชื่อห้องเพื่อสร้างห้อง เครื่องที่สร้างเป็นจอหลัก
+เปิด `https://<เว็บของคุณ>` แล้วตั้งชื่อห้องเพื่อสร้างห้อง เครื่องที่สร้างเป็นจอหลัก
 หากเบราว์เซอร์จำห้องเดิมไว้ จะกลับเข้าห้องเดิม เก็บลิงก์เจ้าของไว้เป็นส่วนตัว ผู้มีลิงก์ควบคุมห้องได้
 
 แขกเข้าผ่าน QR บนจอหลัก ลิงก์แขก หรือเปิด `/remote` แล้วกรอก PIN ตัวเลข 6 หลัก
@@ -49,51 +51,9 @@ PORT=8792 HOST=127.0.0.1 DATA_DIR=./data-dev node server.mjs
 
 ## นำขึ้น Vercel และ Firebase
 
-1. สร้าง Realtime Database และบัญชีบริการที่มีสิทธิ์อ่านเขียนฐานข้อมูล เก็บกุญแจเฉพาะฝั่งเซิร์ฟเวอร์
-2. เผยแพร่ `database.rules.json` ใน Firebase Console กฎปิดอ่าน/เขียนที่ราก แต่เปิดอ่านห้องรายตัวเมื่อรู้ id ห้ามเปิดเขียนสาธารณะ รายชื่อห้อง `/meta` และ `/usage` ไม่เปิดอ่าน
-3. เปิด Google provider ใน Firebase Authentication และเพิ่มโดเมนเว็บใน Authorized domains สำหรับหน้าผู้ดูแล สร้าง Web app เพื่อรับ config และตั้งรายชื่อผู้ดูแลใน env
-4. ตั้ง env ด้านล่างใน Vercel แล้ว deploy โครงการนี้ `vercel.json` ใช้ `public` เป็นไฟล์เว็บ ฟังก์ชันอยู่สิงคโปร์ (`sin1`) จำกัดเวลา 15 วินาที และแนบตรรกะคิวที่ใช้ร่วมกัน
-5. ตรวจสร้างห้อง เข้า PIN เปลี่ยนรหัส ปิดห้อง และ Google login บนเว็บจริง ตั้ง Firewall และซ้อมสองห้องตาม [REVIEW](docs/REVIEW.md)
-
-ตัวแปรทั้งหมดที่ `lib/vercel.mjs` อ่าน (ตารางนี้ระบุชื่อและความหมายเท่านั้น):
-
-| ชื่อ | ความหมาย | บังคับหรือไม่ |
-|---|---|---|
-| `FIREBASE_DB_URL` | URL ของ Realtime Database | บังคับ |
-| `FIREBASE_CLIENT_EMAIL` | ตัวระบุบัญชีบริการจากไฟล์กุญแจ | บังคับ |
-| `FIREBASE_PRIVATE_KEY` | กุญแจส่วนตัวของบัญชีบริการ รองรับ newline และ `\n` | บังคับ |
-| `ROOM_SECRET` | ความลับสำหรับเซ็นโทเคนห้อง | บังคับ |
-| `ADMIN_KEY` | กุญแจผู้ดูแลสำหรับเครื่องมือ CLI | ไม่บังคับ ถ้าใช้ Google อย่างเดียว |
-| `PUBLIC_ORIGIN` | ฐาน URL สำหรับลิงก์ หากไม่ตั้งใช้ HTTPS จาก Host ของคำขอ | ไม่บังคับ ควรตั้งบนเว็บจริง |
-| `FIREBASE_WEB_CONFIG` | ข้อความ JSON มี `apiKey`, `authDomain`, `projectId`, `appId`; ค่าที่ถูกต้องถูกส่งให้หน้าเว็บ | จำเป็นสำหรับ Google login บนหน้าเว็บ |
-| `ADMIN_EMAILS` | รายชื่อบัญชี Google ที่อนุญาต คั่นด้วยจุลภาค ตัดช่องว่างและเทียบตัวพิมพ์เล็ก | จำเป็นสำหรับสิทธิ์ผู้ดูแลผ่าน Google |
-| `FIREBASE_PROJECT_ID` | project id สำหรับตรวจ ID token; ถ้าไม่ตั้งใช้ `projectId` จาก Web config หรืออนุมานจากบัญชีบริการ | ไม่บังคับถ้าอนุมานได้ |
-| `SEARCH_DISABLED` | ตั้งเป็น `1` เพื่อปิดค้นหาและตรวจเพลงฉุกเฉิน | ไม่บังคับ |
-| `CREATE_DISABLED` | ตั้งเป็น `1` เพื่อบังคับปิดสร้างห้องสาธารณะ แม้ผู้ดูแลเปิดสวิตช์ | ไม่บังคับ |
-
-ขาดตัวบังคับใดตัวหนึ่ง ทุก API บน Vercel ตอบ `503 not_configured`
-ถ้าไม่มีทั้งกุญแจและ Google ที่ตั้งค่าครบ API ผู้ดูแลตอบ `503 admin_disabled`
-
-```bash
-node tools/setup.mjs
-```
-
-สคริปต์นี้สุ่มกุญแจและพิมพ์คำแนะนำ ไม่บันทึกไฟล์หรือเรียกเครือข่าย ผลลัพธ์มีความลับ ห้ามนำไปเผยแพร่
-สคริปต์ยังไม่แนะนำ env สำหรับ Google และการสร้างห้องสาธารณะครบ ต้องตั้งตามตารางด้วยตนเอง
-
-ตั้ง `KARAOKE_ADMIN_KEY` ในเทอร์มินัลให้ตรงกับกุญแจผู้ดูแล แล้วใช้คำสั่งต่อไปนี้ โดยแทน `<roomId>` ด้วยห้องที่ต้องการ:
-
-```bash
-node tools/room.mjs create "ห้องทดสอบ" --url https://karaduck.vercel.app
-node tools/room.mjs list --url https://karaduck.vercel.app
-node tools/room.mjs rotate-owner '<roomId>' --url https://karaduck.vercel.app
-node tools/room.mjs delete '<roomId>' --url https://karaduck.vercel.app
-node tools/room.mjs list --local
-```
-
-ไม่ระบุ `--url` ใช้ `KARAOKE_URL` หรือ `PUBLIC_ORIGIN` แทนได้
-`--local` ใช้พอร์ตจาก `PORT` หรือ 8791 และอ่านกุญแจจาก `data/secrets.json` เสมอ ไม่อ่าน `DATA_DIR`
-ถ้าใช้โฟลเดอร์ข้อมูลอื่น ต้องจัดกุญแจให้ CLI ผ่าน env แล้วระบุ `--url` เอง ผลลัพธ์การสร้างและออกลิงก์ใหม่มีลิงก์เจ้าของ ให้ส่งทางช่องทางส่วนตัว
+สร้าง Firebase Realtime Database เปิด Google login ตั้งตัวแปรแวดล้อมใน Vercel แล้วนำเว็บขึ้นบัญชีของคุณเอง
+ดูขั้นตอน คำสั่ง ตารางตัวแปร การตรวจหลังติดตั้ง และวิธีแก้ปัญหาใน [INSTALL](docs/INSTALL.md)
+ไม่มีขั้น build; `vercel.json` ใช้ไฟล์เว็บจาก `public` และฟังก์ชันที่สิงคโปร์ (`sin1`) จำกัดเวลา 15 วินาที
 
 ## เพดาน
 

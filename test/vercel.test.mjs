@@ -9,7 +9,7 @@ import { newRoomDoc, encodeRoomDoc } from '../lib/room-doc.mjs';
 
 const roomId = 'ABCDEFGHJKLMNPQR';
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' });
-const baseEnv = { FIREBASE_DB_URL: 'https://karaduck-3935d-default-rtdb.asia-southeast1.firebasedatabase.app/',
+const baseEnv = { FIREBASE_DB_URL: 'https://your-project-id-default-rtdb.asia-southeast1.firebasedatabase.app/',
   FIREBASE_CLIENT_EMAIL: 'service@example.test', FIREBASE_PRIVATE_KEY: privateKey, ROOM_SECRET: 'room-secret', ADMIN_KEY: 'admin-test' };
 const noFetch = () => assert.fail('unexpected network');
 const req = (path, init) => new Request(`https://karaoke.test/api/${path}`, init);
@@ -17,7 +17,7 @@ const post = body => ({ method: 'POST', headers: { 'content-type': 'application/
 const json = value => new Response(JSON.stringify(value), { headers: { ETag: '"rev"' } });
 
 test('optional Firebase config is sanitized and invalid or incomplete values return null', async () => {
-  const firebase = { apiKey: 'public', authDomain: 'karaduck-3935d.firebaseapp.com', projectId: 'karaduck-3935d', appId: 'app' };
+  const firebase = { apiKey: 'public', authDomain: 'your-project-id.firebaseapp.com', projectId: 'your-project-id', appId: 'app' };
   for (const [text, expected] of [[undefined, null], ['{', null], ['null', null], ['{}', null],
     [JSON.stringify({ ...firebase, apiKey: '' }), null], [JSON.stringify({ ...firebase, unexpectedSecret: 'omit' }), firebase]]) {
     const response = await webHandler('config', { env: { ...baseEnv, ADMIN_KEY: '', FIREBASE_WEB_CONFIG: text },
