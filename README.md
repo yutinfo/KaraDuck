@@ -27,7 +27,7 @@ node server.mjs
 
 เปิดลิงก์เจ้าของที่พิมพ์ตอนเริ่มเซิร์ฟเวอร์ ไม่ใช้ IP เพื่อยืนยันสิทธิ์
 ครั้งแรกสร้างห้องชื่อ “บ้าน” และเก็บกุญแจใน `data/secrets.json` ส่วนข้อมูลห้องอยู่ใน `data/rooms.json`
-รีสตาร์ตแล้วใช้ข้อมูลเดิม ไม่ย้ายข้อมูลจาก `data/state.json` รุ่นเก่า
+รีสตาร์ตแล้วใช้ข้อมูลเดิม เซิร์ฟเวอร์ไม่แตะ `data/state.json` ของเวอร์ชันเดิม
 ลิงก์แขกใช้ที่อยู่เครือข่ายของเครื่อง แขกต้องเชื่อมต่อถึงเครื่องนี้ได้
 
 | ตัวแปร | ความหมาย | ค่าเริ่มต้น |
@@ -132,9 +132,7 @@ public/                HTML CSS โลโก้ และ JavaScript ไม่�
   js/admin-view.js     ตรรกะแสดงรายการผู้ดูแล
 tools/                 setup.mjs และ room.mjs
 test/                  Node test runner และ fixtures
-docs/                  สัญญา รีวิว แบบ แผน และ mockups
-tasks/                 ใบงานพัฒนา
-spikes/                การทดลอง YouTube บน Vercel
+docs/                  สัญญา รีวิว แบบระบบ และ mockups
 design/                ไฟล์งานออกแบบโลโก้
 database.rules.json    กฎ Realtime Database
 vercel.json            การตั้งค่า deploy และ headers

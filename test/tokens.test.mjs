@@ -29,6 +29,11 @@ test('ปฏิเสธโทเคนที่ถูกแก้หรือ�
     token.replace(/.$/, '!'), `${token}=`,
   ]) assert.equal(verifyToken('s', bad), null, String(bad));
   assert.equal(verifyToken('other', token), null);
+  for (const ending of ['\n', '\r', '\r\n']) {
+    const payload = `${roomId}.g1${ending}`;
+    const sig = createHmac('sha256', 's').update(payload).digest().subarray(0, 16).toString('base64url');
+    assert.equal(verifyToken('s', `${payload}.${sig}`), null);
+  }
   // Reject alternate base64 encodings with nonzero unused bits, too.
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   const last = alphabet.indexOf(token.at(-1));

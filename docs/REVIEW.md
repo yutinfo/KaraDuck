@@ -14,7 +14,7 @@
 
 | # | ระดับเดิม | เรื่องเดิมและผลกระทบ | สถานะ ณ 25 พ.ย. 2026 |
 |---|---|---|---|
-| A1 | วิกฤต | สิทธิ์เจ้าของห้องมาจาก IP loopback หลัง proxy ทุกคนอาจได้สิทธิ์เจ้าของ | **แก้แล้ว** — `lib/tokens.mjs`, `lib/handlers.mjs`, `lib/room-service.mjs` ตรวจ HMAC บทบาทและ epoch ทั้งออนไลน์และบนเครื่อง ไม่มีสิทธิ์เจ้าของจาก IP |
+| A1 | วิกฤต | สิทธิ์เจ้าของห้องเคยอิง IP ของเครื่องเซิร์ฟเวอร์ หลัง proxy ทุกคนอาจได้สิทธิ์เจ้าของ | **แก้แล้ว** — `lib/tokens.mjs`, `lib/handlers.mjs`, `lib/room-service.mjs` ตรวจ HMAC บทบาทและ epoch ทั้งออนไลน์และบนเครื่อง ไม่มีสิทธิ์เจ้าของจาก IP |
 | A2 | สูง | ไม่ตรวจ Host/Origin เสี่ยง DNS rebinding ให้เว็บอื่นสั่งด้วยสิทธิ์เจ้าของเครื่อง | **แก้แล้ว** — สิทธิ์ไม่ผูก IP ทุกคำสั่งห้องต้องมี Bearer token และ API ไม่เปิด CORS (`lib/handlers.mjs`, `server.mjs`) จึงตัดเส้นทางสิทธิ์เจ้าของเดิม แต่ยังไม่ตรวจ Host/Origin โดยตรง และถ้าไม่ตั้ง PUBLIC_ORIGIN จะสร้างลิงก์จาก Host ใน `lib/vercel.mjs` |
 | A3 | สูง | คิวไม่มีเพดานและเขียนไฟล์ทั้งก้อนแบบ sync ทุกคำสั่ง อาจตันหน่วยความจำหรือดิสก์ | **แก้บางส่วน** — แก้เพดานคิวเป็น 200 และ body 16 KiB แล้ว (`public/js/store.js`, `lib/handlers.mjs`) ออนไลน์ใช้ RTDB แต่ `lib/store-file.mjs` บนเครื่องยัง serialize และเขียนทุกห้องทั้งก้อนแบบ sync รวมถึง report/control |
 | A4 | สูง | SSE ไม่จำกัดจำนวนและไม่รับมือ backpressure คนอ่านช้าทำให้หน่วยความจำโต | **แก้บางส่วน** — ออนไลน์ย้ายภาระไป Firebase บนเครื่องจำกัด 50 ช่องและเก็บกวาดตอนปิดแล้ว แต่ `server.mjs` ยังไม่จัดการผล false ของ `res.write` |
@@ -49,12 +49,12 @@
 | C2 | กลาง | UI และ CSS ซ้ำระหว่างจอหลักกับมือถือ ควรรวมชิ้นส่วนร่วม | **ยังไม่แก้** — `public/js/app.js` และ `public/js/remote.js` ยังมี toast, tile, queue row และ icons แยกกัน; มี `public/tokens.css` และ api.js ร่วมแล้ว แต่ยังไม่รวม UI |
 | C3 | กลาง | เซิร์ฟเวอร์ import ตรรกะจาก public/js ควรย้าย shared หรือเขียนเหตุผล | **แก้แล้ว** — คงตรรกะล้วนใน `public/js/store.js`, `public/js/commands.js` ให้ server/หน้า demo ใช้ชุดเดียว (`lib/room-doc.mjs`, `lib/room-service.mjs`) README และ DESIGN ระบุเหตุผลแล้ว `vercel.json` แนบสองไฟล์นี้ในฟังก์ชัน |
 | C4 | สูง | ขาดเทสต์หน้าเว็บ ควรเริ่มจากตรรกะที่แยกได้และ EventSource ปลอม | **ยังไม่แก้** — มี `test/session.test.mjs`, `test/room-merge.test.mjs`, `test/drag-sort.test.mjs`, `test/admin-view.test.mjs` แล้ว แต่ไม่มีเทสต์ sync.js ด้วย EventSource ปลอม และยังไม่ครอบคลุมวงจร player/DOM ของ app.js/remote.js |
-| C5 | ต่ำ | ขาด LICENSE, .editorconfig และ lint; tasks เป็นบันทึกงาน | **ยังไม่แก้** — ยังไม่มี LICENSE, .editorconfig หรือคำสั่ง lint ใน `package.json`; `tasks/` คงเป็นใบงานพัฒนา |
+| C5 | ต่ำ | ขาด LICENSE, .editorconfig และ lint | **ยังไม่แก้** — ยังไม่มี LICENSE, .editorconfig หรือคำสั่ง lint ใน `package.json` |
 | C6 | — | README | **แก้แล้ว** — `README.md` อธิบาย KaraDuck ออนไลน์ วิธีรัน ตั้งค่า เพดาน เครื่องมือ และ npm test ตามโค้ดปัจจุบัน |
 
 ## D. แบบและแผนออนไลน์
 
-ระบบหลายห้องใช้งานผ่าน Vercel และ Firebase แล้ว แบบย้อนหลังอยู่ใน [docs/specs/](specs/) โดยอ่าน [แบบหลัก](specs/2026-11-25-online-design.md) คู่กับ [ส่วนสร้างห้องสาธารณะและ PIN](specs/2026-11-25-public-rooms.md) แผนอยู่ใน [docs/plans/](plans/) โดยเริ่มจาก [แผนออนไลน์](plans/2026-11-25-online.md) สัญญาที่ตรงโค้ดปัจจุบันอยู่ใน [DESIGN](DESIGN.md) เอกสารแบบและแผนเป็นบันทึก ไม่ใช่หลักฐานว่างาน deploy และซ้อมผ่านแล้ว
+ระบบหลายห้องใช้งานผ่าน Vercel และ Firebase แล้ว แบบย้อนหลังอยู่ใน [docs/specs/](specs/) โดยอ่าน [แบบหลัก](specs/2026-11-25-online-design.md) คู่กับ [ส่วนสร้างห้องสาธารณะและ PIN](specs/2026-11-25-public-rooms.md) สัญญาที่ตรงโค้ดปัจจุบันอยู่ใน [DESIGN](DESIGN.md) เอกสารแบบเป็นบันทึก ไม่ใช่หลักฐานว่างาน deploy และซ้อมผ่านแล้ว
 
 ## ความเสี่ยงใหม่จากการเปิดสร้างห้องสาธารณะ
 
@@ -78,5 +78,4 @@
 
 - แบบหลักกำหนดให้ผู้ดูแลสร้างห้อง ส่วนเพิ่มสาธารณะและ PIN ยกเลิกข้อนั้นแล้ว โค้ดรองรับส่วนเพิ่มทั้งสอง ไม่ใช่ข้อบกพร่องของโค้ด
 - admin list คืน pin เพิ่มจากฟิลด์ที่แบบสาธารณะระบุ (`lib/handlers.mjs`) และเอกสารแบบ PIN ระบุเพิ่ม pin เฉพาะ owner room
-- `tools/setup.mjs` ยังแนะนำเฉพาะ env ชุดแรก ไม่ครอบคลุม Google login และ CREATE_DISABLED จึงต้องใช้รายการเต็มใน README
 - อย่าตีความ “ไม่มีการใช้งาน 24 ชั่วโมง” ว่ารวมทุกกิจกรรม โค้ดและรายละเอียดแบบนับเฉพาะการเขียน q ไม่มีการลบตามเวลาทันที

@@ -5,6 +5,7 @@ import { createFileStore } from '../lib/store-file.mjs';
 import { newRoomDoc, encodeRoomDoc } from '../lib/room-doc.mjs';
 import { signToken, verifyToken } from '../lib/tokens.mjs';
 import { JOIN_FAILS_PER_MINUTE, IDLE_MS, minuteOf } from '../lib/limits.mjs';
+import { removeRoomPins } from '../lib/room-service.mjs';
 
 const roomId = 'ABCDEFGHJKLMNPQR', otherId = 'BCDEFGHJKLMNPQRS', secret = 'pin-test';
 const value = response => JSON.parse(response.body);
@@ -36,6 +37,31 @@ const expectError = (response, status, error) => {
   assert.equal(response.status, status);
   assert.deepEqual(value(response), { error });
 };
+
+test('PIN cleanup retries fresh metadata, skips absent PINs and preserves best-effort results', async () => {
+  const store = createFileStore();
+  await setMeta(store, { pins: { '000001': roomId } });
+  let writes = 0;
+  const wrapped = { ...store, writeMeta: async (...args) => {
+    if (++writes === 1) await setMeta(store, { pins: { '000001': roomId, '000002': otherId }, extra: 'concurrent' });
+    return store.writeMeta(...args);
+  } };
+  assert.equal(await removeRoomPins(wrapped, roomId), true);
+  assert.equal(writes, 2);
+  assert.deepEqual((await metaOf(store)).pins, { '000002': otherId });
+  assert.equal((await metaOf(store)).extra, 'concurrent');
+  assert.equal(await removeRoomPins(wrapped, roomId), true);
+  assert.equal(writes, 2);
+  for (const failure of ['conflict', 'throw']) {
+    let attempts = 0;
+    assert.equal(await removeRoomPins({ ...store, writeMeta: async () => {
+      attempts++;
+      if (failure === 'throw') throw new Error('offline');
+      return false;
+    } }, otherId), false);
+    assert.equal(attempts, failure === 'conflict' ? 5 : 1);
+  }
+});
 async function seed(f, id = roomId) {
   await f.store.writeQueue(id, encodeRoomDoc(newRoomDoc('บ้านเก่า', f.now())), 'null_etag');
 }

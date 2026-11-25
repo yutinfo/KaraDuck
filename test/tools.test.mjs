@@ -92,7 +92,7 @@ test('HTTP/network/local secret/JSON เสีย คืน 1 และไม่
   assert.equal(await run(['list', '--url', 'https://karaoke.test'], h.options), 1);
 });
 
-test('setup สุ่ม 32/24 bytes base64url พร้อมคำสั่งครบและแหล่งค่า Firebase โดยไม่ใช้ file/network', () => {
+test('setup สุ่ม 32/24 bytes base64url พร้อมคำสั่งครบและแหล่งค่า Firebase โดยไม่ใช้ file/network', async () => {
   const logs = [];
   assert.equal(setup({ log: line => logs.push(line) }), 0);
   const text = logs.join('\n');
@@ -102,14 +102,35 @@ test('setup สุ่ม 32/24 bytes base64url พร้อมคำสั่ง
   assert.equal(Buffer.from(admin, 'base64url').length, 24);
   assert.equal(room.length, 43);
   assert.equal(admin.length, 32);
-  for (const name of ['ROOM_SECRET', 'ADMIN_KEY', 'FIREBASE_DB_URL', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY']) {
-    assert.ok(text.includes(`vercel env add ${name} production`));
+  const adapter = await readFile(new URL('../lib/vercel.mjs', import.meta.url), 'utf8');
+  const required = ['FIREBASE_DB_URL', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY', 'ROOM_SECRET'];
+  const names = [...new Set([...adapter.matchAll(/env\.([A-Z_]+)/g)].map(match => match[1]).concat(required))].sort();
+  assert.deepEqual([...text.matchAll(/^vercel env add ([A-Z_]+) production$/gm)].map(match => match[1]).sort(), names);
+  for (const name of required) assert.ok(text.includes(`${name} (บังคับ)`), name);
+  for (const name of names.filter(name => !required.includes(name))) {
+    assert.match(text.split('\n').find(line => line.startsWith(`${name} `) || line.startsWith(`${name}=1 `)), /ไม่บังคับ|จำเป็นสำหรับ/);
   }
   assert.match(text, /client_email/);
   assert.match(text, /private_key/);
   const second = [];
   setup({ log: line => second.push(line) });
   assert.notEqual(second.join('\n'), text);
+});
+
+test('CLI preserves untrimmed room names and rejects room IDs with trailing newlines', async () => {
+  for (const name of [' บ้าน ', 'ก'.repeat(40), ` ${'ก'.repeat(40)} `]) {
+    const h = harness({ response: { roomId, ownerUrl } });
+    assert.equal(await run(['create', name, '--url', 'https://karaoke.test'], h.options), 0);
+    assert.deepEqual(JSON.parse(h.calls[0].body), { action: 'create', name });
+  }
+  for (const name of ['', '  ', 'ก'.repeat(41)]) {
+    const h = harness();
+    assert.equal(await run(['create', name, '--url', 'https://karaoke.test'], h.options), 1);
+    assert.equal(h.calls.length, 0);
+  }
+  const h = harness({ response: { ok: true } });
+  assert.equal(await run(['delete', `${roomId}\n`, '--url', 'https://karaoke.test'], h.options), 1);
+  assert.equal(h.calls.length, 0);
 });
 
 test('gitignore ไม่ให้ env ที่มี secrets ถูกติดตาม', async () => {

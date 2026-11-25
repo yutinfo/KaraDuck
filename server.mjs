@@ -7,11 +7,11 @@ import { mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { createFileStore } from './lib/store-file.mjs';
 import { createHandlers } from './lib/handlers.mjs';
 import { newRoomDoc, encodeRoomDoc, decodeRoomDoc } from './lib/room-doc.mjs';
-import { makeRoomId, signToken } from './lib/tokens.mjs';
+import { ROOM_ID_PATTERN, makeRoomId, signToken } from './lib/tokens.mjs';
 import { SECURITY_HEADERS, securityHeadersFor } from './lib/security-headers.mjs';
 import { serveStatic } from './lib/static.mjs';
+import { json } from './lib/http-response.mjs';
 
-const json = (status, body, headers = {}) => ({ status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers }, body: JSON.stringify(body) });
 const streamPattern = /^\/local-db\/rooms\/([A-HJ-NP-Z2-9]{16})\.json$/;
 
 // Inspect the original path before URL parsing can collapse traversal segments.
@@ -94,7 +94,7 @@ export function createLocalApp({ publicDir = fileURLToPath(new URL('./public/', 
       return { ...response, headers: { ...response.headers, ...securityHeadersFor(pathname) }, body: request.method === 'HEAD' ? '' : response.body };
     },
     openStream(roomId, send) {
-      if (!/^[A-HJ-NP-Z2-9]{16}$/.test(roomId) || streams >= 50) return null;
+      if (!ROOM_ID_PATTERN.test(roomId) || streams >= 50) return null;
       streams++;
       let closed = false;
       const unsubscribe = store.subscribe(roomId, send);

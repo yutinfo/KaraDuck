@@ -1,6 +1,8 @@
 import { readFile as defaultReadFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { ROOM_ID_PATTERN } from '../lib/tokens.mjs';
+import { cleanRoomName } from '../lib/room-doc.mjs';
 
 const usage = 'วิธีใช้: node tools/room.mjs <create "ชื่อ" | list | delete <roomId> | rotate-owner <roomId>> [--url <ฐาน>] [--local]';
 
@@ -16,9 +18,9 @@ function parse(argv) {
   }
   const [command, argument] = args;
   let body;
-  if (command === 'create' && args.length === 2 && argument.trim() && argument.trim().length <= 40) body = { action: 'create', name: argument };
+  if (command === 'create' && args.length === 2 && cleanRoomName(argument) !== null) body = { action: 'create', name: argument };
   else if (command === 'list' && args.length === 1) body = { action: 'list' };
-  else if (['delete', 'rotate-owner'].includes(command) && args.length === 2 && /^[A-HJ-NP-Z2-9]{16}$/.test(argument)) {
+  else if (['delete', 'rotate-owner'].includes(command) && args.length === 2 && ROOM_ID_PATTERN.test(argument)) {
     body = { action: command === 'delete' ? 'delete' : 'rotateOwner', roomId: argument };
   } else throw new Error(usage);
   return { url, local, body };

@@ -19,6 +19,18 @@ function request(endpoint, { role = 'g', method = 'GET', body, ...extra } = {}) 
 }
 const adminReq = body => request('admin', { method: 'POST', body, headers: { authorization: 'Bearer admin', 'content-type': 'application/json' } });
 
+test('admin retains room ID validation and rejects trailing newlines and non-string IDs', async () => {
+  const { store, handlers } = await setup();
+  assert.equal((await handlers.admin(adminReq({ action: 'delete', roomId: `${roomId}\n` }))).status, 400);
+  assert.notEqual((await store.readQueue(roomId)).text, null);
+  assert.equal((await handlers.admin(adminReq({ action: 'rotateOwner', roomId: `${roomId}\n` }))).status, 400);
+  for (const id of [null, 42, {}, ['ABCDEFGHJKLMNPQR'], 'bad', 'I'.repeat(16)]) {
+    const response = await handlers.admin(adminReq({ action: 'delete', roomId: id }));
+    assert.equal(response.status, 400);
+    assert.deepEqual(value(response), { error: 'bad_command' });
+  }
+});
+
 test('Google admin requires verified allowlisted email and Google sign-in; key path still works', async () => {
   const valid = { email: 'OWNER@Example.Test', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
   for (const [claims, status, code] of [

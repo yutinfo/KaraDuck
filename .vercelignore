@@ -2,8 +2,6 @@ data/
 data-dev/
 .codex-runs/
 .agy-runs/
-tasks/
-spikes/
 test/
 docs/
 tools/
