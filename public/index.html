@@ -31,6 +31,7 @@
             </svg>
             <span>ร้องเลย</span>
           </div>
+          <span id="room-name" class="pill room-name-pill" hidden></span>
           <span class="brand-tagline">คาราโอเกะจาก YouTube</span>
         </div>
         <span class="topbar-spacer" aria-hidden="true"></span>
@@ -64,10 +65,11 @@
             <p class="stage-message">พิมพ์ชื่อเพลง แล้วกด เข้าคิว</p>
           </div>
           <div id="stage-idle-qr" class="stage-idle-qr" hidden>
-            <div class="qr-frame qr-frame-stage">
+            <div id="stage-qr-frame" class="qr-frame qr-frame-stage">
               <img id="stage-qr-img" alt="QR สำหรับเปิดหน้าสั่งเพลง" width="140" height="140">
             </div>
-            <p class="stage-qr-caption">สแกนเพื่อสั่งเพลงจากมือถือ</p>
+            <p id="stage-qr-caption" class="stage-qr-caption">สแกนเพื่อสั่งเพลงจากมือถือ</p>
+            <p id="stage-qr-url" class="stage-qr-url" hidden></p>
           </div>
         </div>
 
@@ -208,6 +210,17 @@
       <section id="panel-remote" class="panel" role="tabpanel" aria-labelledby="tab-remote" hidden></section>
     </aside>
   </div>
+
+  <section id="room-gate" class="room-gate" role="alertdialog" aria-modal="true" aria-labelledby="room-gate-title" aria-describedby="room-gate-desc" hidden>
+    <div class="glass iris room-gate-card">
+      <svg class="room-gate-icon" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" fill="rgba(255, 61, 154, 0.1)" stroke="#ff3d9a" stroke-width="1.8" />
+        <path d="M12 7v6M12 16.5v.5" fill="none" stroke="#ffd166" stroke-width="2.2" stroke-linecap="round" />
+      </svg>
+      <h1 id="room-gate-title" class="room-gate-title"></h1>
+      <p id="room-gate-desc" class="room-gate-desc"></p>
+    </div>
+  </section>
 
   <div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 

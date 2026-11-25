@@ -4,9 +4,10 @@ import {
   formatDuration,
 } from './store.js';
 import { applyCommand } from './commands.js';
-import { search, getRemoteInfo, fetchEmbeddable } from './api.js';
+import { search, getRoom, fetchEmbeddable } from './api.js';
 import { createPlayer } from './player.js';
 import { createSync } from './sync.js';
+import { takeToken, forgetToken } from './session.js';
 import { createDragSort } from './drag-sort.js';
 import { DEMO_QUERY, DEMO_SONGS } from './demo-data.js';
 
@@ -16,8 +17,24 @@ const ERROR_SKIP_DELAY_MS = 2500;
 const AUTOPLAY_CHECK_DELAY_MS = 4000;
 const CONFIRM_RESET_MS = 3000;
 const TOAST_TTL_MS = 3500;
+const ADVANCE_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
+const REPORT_DEBOUNCE_MS = 1000;
 const AUTOPLAY_HINT_TEXT =
   'กด ▶ หนึ่งครั้งเพื่อเปิดเสียง หลังจากนั้นเพลงจะเล่นต่อเองจากมือถือได้';
+const GATE_MESSAGES = {
+  no_token: {
+    title: 'ต้องเปิดจากลิงก์ห้อง',
+    desc: 'หน้านี้ต้องเปิดจากลิงก์เจ้าของห้อง กรุณาขอลิงก์ห้องจากผู้ดูแล',
+  },
+  bad_key: {
+    title: 'ลิงก์ห้องนี้ใช้ไม่ได้แล้ว',
+    desc: 'ลิงก์ห้องหมดอายุหรือไม่ถูกต้อง กรุณาขอลิงก์ห้องใหม่จากผู้ดูแล',
+  },
+  gone: {
+    title: 'ห้องนี้ถูกปิดแล้ว',
+    desc: 'ผู้ดูแลได้ปิดห้องนี้แล้ว หากต้องการใช้งานต่อ กรุณาขอลิงก์ห้องใหม่จากผู้ดูแล',
+  },
+};
 
 const params = new URLSearchParams(location.search);
 const isDemo = params.get('demo') === '1';
@@ -33,14 +50,22 @@ const initialTab =
 
 // DOM references
 const backdropEl = document.getElementById('backdrop');
+const appEl = document.getElementById('app');
+const roomNameEl = document.getElementById('room-name');
 const btnOpenRemote = document.getElementById('btn-open-remote');
 const stageCol = document.getElementById('stage-col');
 const playerWrap = document.getElementById('player-wrap');
 const stageIdle = document.getElementById('stage-idle');
 const stageIdleQr = document.getElementById('stage-idle-qr');
+const stageQrFrame = document.getElementById('stage-qr-frame');
 const stageQrImg = document.getElementById('stage-qr-img');
+const stageQrCaption = document.getElementById('stage-qr-caption');
+const stageQrUrl = document.getElementById('stage-qr-url');
 const stageUnavailable = document.getElementById('stage-unavailable');
 const btnRetryPlayer = document.getElementById('btn-retry-player');
+const roomGateEl = document.getElementById('room-gate');
+const roomGateTitleEl = document.getElementById('room-gate-title');
+const roomGateDescEl = document.getElementById('room-gate-desc');
 
 const nowbarEl = document.getElementById('nowbar');
 const nowbarTitle = document.getElementById('nowbar-title');
@@ -98,19 +123,38 @@ let errorSkipTimer = null;
 let autoplayCheckTimer = null;
 let autoplayBlocked = false;
 
-let remoteInfoStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'error'
-let remoteInfo = { available: false, url: null };
+let activeToken = '';
+let sync = null;
+let player = null;
+let blockedReason = null; // null | 'no_token' | 'bad_key' | 'gone'
+let roomName = '';
+let roomInfoStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'demo'
+let roomInfo = null;
+let rotatingGuest = false;
+let activeRoomRefreshController = null;
+
+let advanceRetryTimer = null;
+let advanceRetryQid = null;
+let advanceRetryGeneration = 0;
+
+let reportTimer = null;
+let lastReportedPlayerState = null;
+
 let queueDragSort = null;
 let queueRenderPending = false;
 let pendingFocusHandleQid = null;
+let queueDragInProgress = false;
+let lastQueueMoveFromDrag = false;
 
 const confirmTimers = {
   queue: null,
   history: null,
+  rotateGuest: null,
 };
 const confirmArmed = {
   queue: false,
   history: false,
+  rotateGuest: false,
 };
 
 // Icon helper (safe DOM SVG construction, no innerHTML)
@@ -256,92 +300,326 @@ function showToast(message, { warn = false } = {}) {
   }, TOAST_TTL_MS);
 }
 
-const sync = createSync({
-  key: '',
-  onState: (snapshot) => {
-    handleSnapshot(snapshot);
-  },
-  onControl: (action) => {
-    if (!state.current) return;
-    if (action === 'toggle') {
-      player.toggle();
-    } else if (action === 'restart') {
-      player.restart();
-    }
-  },
-  onStatus: (status) => {
-    syncStatusEl.hidden = status !== 'offline';
-  },
-});
+function qrSvgToDataUrl(qrSvg) {
+  if (typeof qrSvg !== 'string' || !qrSvg) return null;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg)}`;
+}
 
-function dispatch(cmd) {
+function displayGuestUrl(guestUrl) {
+  if (typeof guestUrl !== 'string') return '';
+  const hashIndex = guestUrl.indexOf('#');
+  return hashIndex === -1 ? guestUrl : guestUrl.slice(0, hashIndex);
+}
+
+function renderRoomName() {
+  if (!roomNameEl) return;
+  if (roomName) {
+    roomNameEl.textContent = roomName;
+    roomNameEl.setAttribute('title', roomName);
+    roomNameEl.hidden = false;
+  } else {
+    roomNameEl.textContent = '';
+    roomNameEl.removeAttribute('title');
+    roomNameEl.hidden = true;
+  }
+}
+
+function cancelAdvanceRetry() {
+  advanceRetryGeneration += 1;
+  if (advanceRetryTimer !== null) {
+    clearTimeout(advanceRetryTimer);
+    advanceRetryTimer = null;
+  }
+  advanceRetryQid = null;
+}
+
+function isRetryableAdvanceError(err) {
+  return (
+    err?.code === 'network_error' ||
+    (typeof err?.status === 'number' && err.status >= 500 && err.status < 600)
+  );
+}
+
+function cancelPendingReport() {
+  if (reportTimer !== null) {
+    clearTimeout(reportTimer);
+    reportTimer = null;
+  }
+}
+
+function schedulePlayerReport(nextPlayerState) {
+  if (isDemo || blockedReason || !sync) return;
+
+  cancelPendingReport();
+
+  if (nextPlayerState === lastReportedPlayerState) {
+    return;
+  }
+
+  reportTimer = setTimeout(() => {
+    reportTimer = null;
+    if (blockedReason || !sync) return;
+    if (playerState !== nextPlayerState || nextPlayerState === lastReportedPlayerState) {
+      return;
+    }
+
+    const sentState = nextPlayerState;
+    sync.send({ type: 'report', playerState: sentState }).then(
+      () => {
+        if (blockedReason) return;
+        lastReportedPlayerState = sentState;
+        if (playerState !== lastReportedPlayerState && reportTimer === null) {
+          schedulePlayerReport(playerState);
+        }
+      },
+      (err) => {
+        if (err?.status === 401) {
+          enterBlockedGate('bad_key');
+        } else if (err?.status === 404) {
+          enterBlockedGate('gone');
+        }
+      }
+    );
+  }, REPORT_DEBOUNCE_MS);
+}
+
+function enterBlockedGate(reason) {
+  if (blockedReason === reason) return;
+  blockedReason = reason;
+
+  if (reason === 'bad_key') {
+    forgetToken('o');
+  }
+
+  cancelErrorSkip();
+  clearAutoplayBlocked();
+  cancelAdvanceRetry();
+  cancelPendingReport();
+  resetConfirm('queue');
+  resetConfirm('history');
+  resetConfirm('rotateGuest');
+
+  if (activeSearchController) {
+    activeSearchController.abort();
+    activeSearchController = null;
+  }
+  if (activeEmbedController) {
+    activeEmbedController.abort();
+    activeEmbedController = null;
+  }
+  if (activeRoomRefreshController) {
+    activeRoomRefreshController.abort();
+    activeRoomRefreshController = null;
+  }
+
+  if (sync) {
+    sync.stop();
+  }
+  if (player) {
+    player.stop();
+  }
+
+  syncStatusEl.hidden = true;
+
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement || null;
+  if (fsEl) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) {
+      Promise.resolve(exit.call(document)).catch(() => {});
+    }
+  }
+
+  const msg = GATE_MESSAGES[reason] || GATE_MESSAGES.bad_key;
+  roomGateTitleEl.textContent = msg.title;
+  roomGateDescEl.textContent = msg.desc;
+  appEl.inert = true;
+  appEl.setAttribute('aria-hidden', 'true');
+  roomGateEl.hidden = false;
+}
+
+function handleRoomInfo(info) {
+  if (blockedReason) return;
+  if (!info || info.role !== 'o') {
+    enterBlockedGate('bad_key');
+    return;
+  }
+  roomInfo = info;
+  roomInfoStatus = 'ready';
+  const nextName = typeof info.name === 'string' ? info.name.trim() : '';
+  if (nextName) {
+    roomName = nextName;
+    renderRoomName();
+  }
+  renderRemotePanel();
+  renderStage();
+}
+
+function dispatch(cmd, { silent = false, returnError = false } = {}) {
+  const finish = (ok, error = null) => (returnError ? { ok, error } : ok);
+
   if (isDemo) {
-    if (cmd.type === 'report') {
-      return Promise.resolve(true);
+    if (cmd.type === 'report' || cmd.type === 'rotateGuest') {
+      return Promise.resolve(finish(true));
     }
     try {
       const next = applyCommand(state, cmd);
       handleSnapshot(next);
-      return Promise.resolve(true);
-    } catch {
-      showToast('ส่งคำสั่งไม่สำเร็จ ลองอีกครั้ง', { warn: true });
-      return Promise.resolve(false);
+      return Promise.resolve(finish(true));
+    } catch (err) {
+      if (!silent) {
+        if (err?.code === 'queue_full') {
+          showToast('คิวเต็มแล้ว (200 เพลง)', { warn: true });
+        } else {
+          showToast('ส่งคำสั่งไม่สำเร็จ ลองอีกครั้ง', { warn: true });
+        }
+      }
+      return Promise.resolve(finish(false, err));
     }
   }
 
+  if (blockedReason || !sync) {
+    return Promise.resolve(finish(false, null));
+  }
+
   return sync.send(cmd).then(
-    () => true,
-    () => {
-      showToast('ส่งคำสั่งไม่สำเร็จ ลองอีกครั้ง', { warn: true });
-      return false;
+    () => finish(true),
+    (err) => {
+      if (err?.status === 401) {
+        enterBlockedGate('bad_key');
+        return finish(false, err);
+      }
+      if (err?.status === 404) {
+        enterBlockedGate('gone');
+        return finish(false, err);
+      }
+      if (!silent) {
+        if (err?.status === 409 || err?.code === 'queue_full') {
+          showToast('คิวเต็มแล้ว (200 เพลง)', { warn: true });
+        } else {
+          showToast('ส่งคำสั่งไม่สำเร็จ ลองอีกครั้ง', { warn: true });
+        }
+      }
+      return finish(false, err);
     }
   );
 }
 
-const player = createPlayer({
-  elementId: 'player',
-  onEnded: () => {
-    cancelErrorSkip();
-    clearAutoplayBlocked();
-    if (!state.current) return;
-    void dispatch({ type: 'advance', qid: state.current.qid });
-  },
-  onError: () => {
-    if (!state.current) return;
-    cancelErrorSkip();
-    clearAutoplayBlocked();
-    const failedQid = state.current.qid;
-    showToast('เพลงนี้เล่นในหน้านี้ไม่ได้ กำลังข้ามไปเพลงถัดไป', { warn: true });
-    errorSkipTimer = setTimeout(() => {
-      errorSkipTimer = null;
-      if (!state.current || state.current.qid !== failedQid) return;
-      void dispatch({ type: 'advance', qid: failedQid, skipHistory: true });
-    }, ERROR_SKIP_DELAY_MS);
-  },
-  onState: (nextPlayerState) => {
-    playerState = nextPlayerState;
-    if (nextPlayerState === 'playing') {
+function sendAdvanceWithRetry(cmd) {
+  if (!cmd?.qid) return;
+  cancelAdvanceRetry();
+
+  if (isDemo) {
+    void dispatch(cmd);
+    return;
+  }
+
+  if (blockedReason || !sync) return;
+
+  const generation = advanceRetryGeneration;
+  advanceRetryQid = cmd.qid;
+  let attempt = 0;
+
+  const trySend = () => {
+    if (
+      blockedReason ||
+      generation !== advanceRetryGeneration ||
+      state.current?.qid !== cmd.qid
+    ) {
+      if (generation === advanceRetryGeneration) {
+        cancelAdvanceRetry();
+      }
+      return;
+    }
+
+    const isFirstAttempt = attempt === 0;
+    void dispatch(cmd, { silent: !isFirstAttempt, returnError: true }).then((result) => {
+      if (
+        blockedReason ||
+        generation !== advanceRetryGeneration ||
+        state.current?.qid !== cmd.qid
+      ) {
+        if (generation === advanceRetryGeneration) {
+          cancelAdvanceRetry();
+        }
+        return;
+      }
+      if (result.ok) {
+        cancelAdvanceRetry();
+        return;
+      }
+      if (!isRetryableAdvanceError(result.error)) {
+        cancelAdvanceRetry();
+        return;
+      }
+      const delayIndex = Math.min(attempt, ADVANCE_RETRY_DELAYS_MS.length - 1);
+      const delay = ADVANCE_RETRY_DELAYS_MS[delayIndex];
+      attempt += 1;
+      advanceRetryTimer = setTimeout(() => {
+        advanceRetryTimer = null;
+        trySend();
+      }, delay);
+    });
+  };
+
+  trySend();
+}
+
+function initPlayer() {
+  return createPlayer({
+    elementId: 'player',
+    onEnded: () => {
+      cancelErrorSkip();
       clearAutoplayBlocked();
-    }
-    renderNowbar();
-    if (!isDemo) {
-      sync.send({ type: 'report', playerState: nextPlayerState }).catch(() => {});
-    }
-  },
-  onUnavailable: () => {
-    playerUnavailable = true;
-    renderStage();
-  },
-});
+      if (blockedReason || !state.current) return;
+      sendAdvanceWithRetry({ type: 'advance', qid: state.current.qid });
+    },
+    onError: () => {
+      if (blockedReason || !state.current) return;
+      cancelErrorSkip();
+      clearAutoplayBlocked();
+      const failedQid = state.current.qid;
+      showToast('เพลงนี้เล่นในหน้านี้ไม่ได้ กำลังข้ามไปเพลงถัดไป', { warn: true });
+      errorSkipTimer = setTimeout(() => {
+        errorSkipTimer = null;
+        if (blockedReason || !state.current || state.current.qid !== failedQid) return;
+        sendAdvanceWithRetry({ type: 'advance', qid: failedQid, skipHistory: true });
+      }, ERROR_SKIP_DELAY_MS);
+    },
+    onState: (nextPlayerState) => {
+      playerState = nextPlayerState;
+      if (nextPlayerState === 'playing') {
+        clearAutoplayBlocked();
+      }
+      renderNowbar();
+      schedulePlayerReport(nextPlayerState);
+    },
+    onUnavailable: () => {
+      playerUnavailable = true;
+      renderStage();
+    },
+  });
+}
 
 function handleSnapshot(snapshot, { isFirst = false } = {}) {
+  if (blockedReason) return;
+
   state = {
     current: snapshot?.current ?? null,
     queue: Array.isArray(snapshot?.queue) ? snapshot.queue : [],
     history: Array.isArray(snapshot?.history) ? snapshot.history : [],
   };
 
+  const snapName = typeof snapshot?.name === 'string' ? snapshot.name.trim() : '';
+  if (snapName && !roomName) {
+    roomName = snapName;
+    renderRoomName();
+  }
+
   const nextQid = state.current?.qid ?? null;
+
+  if (advanceRetryQid !== null && nextQid !== advanceRetryQid) {
+    cancelAdvanceRetry();
+  }
 
   if (!hasReceivedFirstSnapshot || isFirst) {
     hasReceivedFirstSnapshot = true;
@@ -349,9 +627,9 @@ function handleSnapshot(snapshot, { isFirst = false } = {}) {
     cancelErrorSkip();
     clearAutoplayBlocked();
     if (state.current) {
-      player.cue(state.current.id);
+      player?.cue(state.current.id);
     } else {
-      player.stop();
+      player?.stop();
     }
   } else if (nextQid !== lastQid) {
     lastQid = nextQid;
@@ -359,32 +637,67 @@ function handleSnapshot(snapshot, { isFirst = false } = {}) {
     clearAutoplayBlocked();
     playerUnavailable = false;
     if (state.current) {
-      player.load(state.current.id);
+      player?.load(state.current.id);
       armAutoplayCheck(nextQid);
     } else {
-      player.stop();
+      player?.stop();
     }
   }
 
   renderAll();
 }
 
-async function loadRemoteInfo() {
-  if (remoteInfoStatus === 'loading') return;
-  remoteInfoStatus = 'loading';
+async function rotateGuestCode() {
+  if (isDemo || blockedReason || rotatingGuest) return;
+  rotatingGuest = true;
   renderRemotePanel();
 
   try {
-    const info = await getRemoteInfo();
-    remoteInfo = info;
-    remoteInfoStatus = 'ready';
-  } catch {
-    remoteInfo = { available: false, url: null };
-    remoteInfoStatus = 'error';
-  }
+    const ok = await dispatch({ type: 'rotateGuest' });
+    if (!ok || blockedReason) return;
 
-  renderRemotePanel();
-  renderStage();
+    if (activeRoomRefreshController) {
+      activeRoomRefreshController.abort();
+    }
+    const controller = new AbortController();
+    activeRoomRefreshController = controller;
+
+    const fresh = await getRoom({ signal: controller.signal, token: activeToken });
+    if (activeRoomRefreshController === controller) {
+      activeRoomRefreshController = null;
+    }
+    if (controller.signal.aborted || blockedReason) return;
+
+    if (!fresh || fresh.role !== 'o') {
+      enterBlockedGate('bad_key');
+      return;
+    }
+    roomInfo = fresh;
+    roomInfoStatus = 'ready';
+    const nextName = typeof fresh.name === 'string' ? fresh.name.trim() : '';
+    if (nextName) {
+      roomName = nextName;
+      renderRoomName();
+    }
+    renderStage();
+    showToast('เปลี่ยนรหัสแขกแล้ว มือถือทุกเครื่องต้องสแกนใหม่');
+  } catch (err) {
+    if (err?.name === 'AbortError' || blockedReason) return;
+    if (err?.status === 401) {
+      enterBlockedGate('bad_key');
+      return;
+    }
+    if (err?.status === 404) {
+      enterBlockedGate('gone');
+      return;
+    }
+    showToast('เปลี่ยนรหัสแล้ว แต่โหลด QR ใหม่ไม่สำเร็จ ลองรีเฟรชหน้า', { warn: true });
+  } finally {
+    rotatingGuest = false;
+    if (!blockedReason) {
+      renderRemotePanel();
+    }
+  }
 }
 
 function isInQueueOrCurrent(songId) {
@@ -452,9 +765,6 @@ function setActiveTab(tabName) {
     tabs[key].setAttribute('aria-selected', String(isSelected));
     panels[key].hidden = !isSelected;
   }
-  if (tabName === 'remote' && (remoteInfoStatus === 'idle' || remoteInfoStatus === 'error')) {
-    void loadRemoteInfo();
-  }
 }
 
 function renderBackdrop() {
@@ -479,12 +789,29 @@ function renderStage() {
     playerWrap.hidden = true;
     stageUnavailable.hidden = true;
     stageIdle.hidden = false;
-    if (remoteInfo.available && remoteInfo.url) {
-      if (stageQrImg.getAttribute('src') !== '/api/qr.svg') {
-        stageQrImg.setAttribute('src', '/api/qr.svg');
+    const guestUrl = typeof roomInfo?.guestUrl === 'string' ? roomInfo.guestUrl : '';
+    const qrDataUrl = qrSvgToDataUrl(roomInfo?.qrSvg);
+    if (guestUrl) {
+      if (qrDataUrl) {
+        if (stageQrImg.getAttribute('src') !== qrDataUrl) {
+          stageQrImg.setAttribute('src', qrDataUrl);
+        }
+        stageQrFrame.hidden = false;
+        stageQrCaption.textContent = 'สแกนเพื่อสั่งเพลงจากมือถือ';
+        stageQrUrl.textContent = '';
+        stageQrUrl.hidden = true;
+      } else {
+        stageQrImg.removeAttribute('src');
+        stageQrFrame.hidden = true;
+        stageQrCaption.textContent = 'เปิดลิงก์นี้บนมือถือ';
+        stageQrUrl.textContent = displayGuestUrl(guestUrl);
+        stageQrUrl.hidden = false;
       }
       stageIdleQr.hidden = false;
     } else {
+      stageQrImg.removeAttribute('src');
+      stageQrUrl.textContent = '';
+      stageQrUrl.hidden = true;
       stageIdleQr.hidden = true;
     }
     return;
@@ -776,6 +1103,16 @@ function resetConfirm(key) {
   confirmArmed[key] = false;
 }
 
+function renderConfirmTarget(key) {
+  if (key === 'queue') {
+    renderQueuePanel();
+  } else if (key === 'history') {
+    renderHistoryPanel();
+  } else if (key === 'rotateGuest') {
+    renderRemotePanel();
+  }
+}
+
 function handleTwoStepClear(key, onConfirmed) {
   if (confirmArmed[key]) {
     resetConfirm(key);
@@ -783,19 +1120,11 @@ function handleTwoStepClear(key, onConfirmed) {
     return;
   }
   confirmArmed[key] = true;
-  if (key === 'queue') {
-    renderQueuePanel();
-  } else {
-    renderHistoryPanel();
-  }
+  renderConfirmTarget(key);
   confirmTimers[key] = setTimeout(() => {
     confirmTimers[key] = null;
     confirmArmed[key] = false;
-    if (key === 'queue') {
-      renderQueuePanel();
-    } else {
-      renderHistoryPanel();
-    }
+    renderConfirmTarget(key);
   }, CONFIRM_RESET_MS);
 }
 
@@ -1000,19 +1329,36 @@ function renderQueuePanel() {
   queueDragSort = createDragSort({
     list,
     scroller: getQueueScroller(),
-    onMove: (qid, delta) => {
+    onMove: (qid, delta, beforeQid) => {
+      const fromDrag = lastQueueMoveFromDrag;
+      lastQueueMoveFromDrag = false;
       const currentActive = document.activeElement;
       if (currentActive && panel.contains(currentActive) && currentActive.closest?.('.drag-handle')) {
         pendingFocusHandleQid = qid;
       }
-      void dispatch({ type: 'move', qid, delta }).then((ok) => {
+      const cmd = fromDrag
+        ? { type: 'moveTo', qid, beforeQid: beforeQid ?? null }
+        : { type: 'move', qid, delta };
+      void dispatch(cmd).then((ok) => {
         if (!ok) {
           renderQueuePanel();
         }
       });
     },
     onDragState: (dragging) => {
-      if (!dragging && queueRenderPending) {
+      if (dragging) {
+        queueDragInProgress = true;
+        lastQueueMoveFromDrag = false;
+        return;
+      }
+      if (queueDragInProgress) {
+        queueDragInProgress = false;
+        lastQueueMoveFromDrag = true;
+        queueMicrotask(() => {
+          lastQueueMoveFromDrag = false;
+        });
+      }
+      if (queueRenderPending) {
         queueRenderPending = false;
         if (queueDragSort && queueDragSort.isDragging()) {
           queueMicrotask(() => {
@@ -1140,23 +1486,24 @@ function renderRemotePanel() {
   const panel = panels.remote;
   panel.replaceChildren();
 
-  if (remoteInfoStatus === 'loading' || remoteInfoStatus === 'idle') {
+  if (isDemo) {
     const box = document.createElement('div');
     box.className = 'panel-state';
     const text = document.createElement('p');
     text.className = 'panel-state-text';
-    text.textContent = 'กำลังตรวจสอบเครือข่าย…';
+    text.textContent = 'โหมดตัวอย่าง — เปิดจากลิงก์ห้องเพื่อดู QR และลิงก์แขก';
     box.appendChild(text);
     panel.appendChild(box);
     return;
   }
 
-  if (!remoteInfo.available || !remoteInfo.url) {
+  const guestUrl = typeof roomInfo?.guestUrl === 'string' ? roomInfo.guestUrl : '';
+  if (roomInfoStatus !== 'ready' || !guestUrl) {
     const box = document.createElement('div');
     box.className = 'panel-state';
     const text = document.createElement('p');
     text.className = 'panel-state-text';
-    text.textContent = 'ไม่พบเครือข่าย Wi-Fi ของเครื่องนี้ ต่อ Wi-Fi แล้วเปิดหน้านี้ใหม่';
+    text.textContent = 'กำลังโหลดข้อมูลห้อง…';
     box.appendChild(text);
     panel.appendChild(box);
     return;
@@ -1168,29 +1515,95 @@ function renderRemotePanel() {
   const heading = document.createElement('h2');
   heading.className = 'remote-card-title';
   heading.textContent = 'สั่งเพลงจากมือถือ';
+  card.appendChild(heading);
 
-  const qrFrame = document.createElement('div');
-  qrFrame.className = 'qr-frame qr-frame-panel';
+  const qrDataUrl = qrSvgToDataUrl(roomInfo.qrSvg);
+  if (qrDataUrl) {
+    const qrFrame = document.createElement('div');
+    qrFrame.className = 'qr-frame qr-frame-panel';
 
-  const qrImg = document.createElement('img');
-  qrImg.id = 'remote-qr';
-  qrImg.setAttribute('src', '/api/qr.svg');
-  qrImg.setAttribute('alt', 'QR สำหรับเปิดหน้าสั่งเพลง');
-  qrImg.setAttribute('width', '220');
-  qrImg.setAttribute('height', '220');
-  qrFrame.appendChild(qrImg);
+    const qrImg = document.createElement('img');
+    qrImg.id = 'remote-qr';
+    qrImg.setAttribute('src', qrDataUrl);
+    qrImg.setAttribute('alt', 'QR สำหรับเปิดหน้าสั่งเพลง');
+    qrImg.setAttribute('width', '220');
+    qrImg.setAttribute('height', '220');
+    qrFrame.appendChild(qrImg);
+    card.appendChild(qrFrame);
+  }
 
   const urlEl = document.createElement('p');
   urlEl.id = 'remote-url';
-  urlEl.textContent = remoteInfo.url;
+  urlEl.textContent = displayGuestUrl(guestUrl);
+  card.appendChild(urlEl);
+
+  const actions = document.createElement('div');
+  actions.className = 'remote-actions';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.id = 'btn-copy-guest';
+  copyBtn.type = 'button';
+  copyBtn.className = 'btn-neon remote-action-btn';
+  copyBtn.textContent = 'คัดลอกลิงก์แขก';
+  copyBtn.addEventListener('click', () => {
+    const urlToCopy = typeof roomInfo?.guestUrl === 'string' ? roomInfo.guestUrl : '';
+    if (!urlToCopy || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+      showToast('คัดลอกลิงก์ไม่ได้', { warn: true });
+      return;
+    }
+    navigator.clipboard.writeText(urlToCopy).then(
+      () => {
+        showToast('คัดลอกลิงก์แขกแล้ว');
+      },
+      () => {
+        showToast('คัดลอกลิงก์ไม่ได้', { warn: true });
+      }
+    );
+  });
+
+  const rotateBtn = document.createElement('button');
+  rotateBtn.id = 'btn-rotate-guest';
+  rotateBtn.type = 'button';
+  rotateBtn.className = confirmArmed.rotateGuest
+    ? 'btn-glass remote-action-btn btn-danger-confirm'
+    : 'btn-glass remote-action-btn';
+  rotateBtn.disabled = rotatingGuest;
+  rotateBtn.textContent = rotatingGuest
+    ? 'กำลังเปลี่ยนรหัส…'
+    : confirmArmed.rotateGuest
+      ? 'แน่ใจ?'
+      : 'เปลี่ยนรหัสแขก';
+  rotateBtn.setAttribute(
+    'aria-label',
+    confirmArmed.rotateGuest ? 'ยืนยันเปลี่ยนรหัสแขก' : 'เปลี่ยนรหัสแขก'
+  );
+  rotateBtn.addEventListener('click', () => {
+    if (rotatingGuest) return;
+    handleTwoStepClear('rotateGuest', () => {
+      void rotateGuestCode();
+    });
+  });
+
+  const rotateNote = document.createElement('p');
+  rotateNote.className = 'remote-rotate-note';
+  rotateNote.textContent = 'เมื่อเปลี่ยนรหัส มือถือทุกเครื่องจะต้องสแกน QR ใหม่';
+
+  actions.append(copyBtn, rotateBtn, rotateNote);
+  card.appendChild(actions);
 
   const steps = document.createElement('ol');
   steps.className = 'remote-steps';
-  const stepTexts = [
-    'ต่อ Wi-Fi วงเดียวกับเครื่องนี้',
-    'สแกน QR ด้วยกล้องมือถือ',
-    'ค้นหาเพลงแล้วกด เข้าคิว',
-  ];
+  const stepTexts = qrDataUrl
+    ? [
+        'สแกน QR ด้วยกล้องมือถือ หรือส่งลิงก์แขกให้เพื่อน',
+        'เปิดหน้าสั่งเพลงบนมือถือ',
+        'ค้นหาเพลงแล้วกด เข้าคิว',
+      ]
+    : [
+        'กดคัดลอกลิงก์แขกแล้วส่งให้เพื่อน',
+        'เปิดลิงก์ในเบราว์เซอร์บนมือถือ',
+        'ค้นหาเพลงแล้วกด เข้าคิว',
+      ];
   stepTexts.forEach((stepText, idx) => {
     const li = document.createElement('li');
     li.className = 'remote-step';
@@ -1203,7 +1616,7 @@ function renderRemotePanel() {
     steps.appendChild(li);
   });
 
-  card.append(heading, qrFrame, urlEl, steps);
+  card.appendChild(steps);
   panel.appendChild(card);
 }
 
@@ -1216,7 +1629,7 @@ function renderAll() {
 }
 
 async function checkSearchEmbeddable(items) {
-  if (isDemo || !Array.isArray(items) || items.length === 0) return;
+  if (isDemo || blockedReason || !Array.isArray(items) || items.length === 0) return;
 
   const unknownIds = [];
   const seen = new Set();
@@ -1236,11 +1649,14 @@ async function checkSearchEmbeddable(items) {
   const controller = new AbortController();
   activeEmbedController = controller;
 
-  const flags = await fetchEmbeddable(unknownIds, { signal: controller.signal });
+  const flags = await fetchEmbeddable(unknownIds, {
+    signal: controller.signal,
+    token: activeToken,
+  });
   if (activeEmbedController === controller) {
     activeEmbedController = null;
   }
-  if (controller.signal.aborted) return;
+  if (controller.signal.aborted || blockedReason) return;
 
   let changed = false;
   for (const id of unknownIds) {
@@ -1259,6 +1675,7 @@ async function checkSearchEmbeddable(items) {
 }
 
 async function runSearch(rawQuery) {
+  if (isDemo || blockedReason) return;
   const query = rawQuery.trim();
   if (!query) return;
 
@@ -1278,8 +1695,11 @@ async function runSearch(rawQuery) {
   renderResultsPanel();
 
   try {
-    const result = await search(query, { signal: controller.signal });
-    if (activeSearchController !== controller) return;
+    const result = await search(query, {
+      signal: controller.signal,
+      token: activeToken,
+    });
+    if (activeSearchController !== controller || blockedReason) return;
     activeSearchController = null;
     searchNote.textContent = `ค้นหา: ${result.query}`;
     searchResults = result.items;
@@ -1288,8 +1708,16 @@ async function runSearch(rawQuery) {
     void checkSearchEmbeddable(searchResults);
   } catch (err) {
     if (err?.name === 'AbortError') return;
-    if (activeSearchController !== controller) return;
+    if (activeSearchController !== controller || blockedReason) return;
     activeSearchController = null;
+    if (err?.status === 401) {
+      enterBlockedGate('bad_key');
+      return;
+    }
+    if (err?.status === 404) {
+      enterBlockedGate('gone');
+      return;
+    }
     searchStatus = 'error';
     renderResultsPanel();
   }
@@ -1325,22 +1753,24 @@ for (const key of tabOrder) {
 }
 
 btnRestart.addEventListener('click', () => {
-  if (!state.current) return;
+  if (blockedReason || !state.current || !player) return;
   player.restart();
 });
 
 btnToggle.addEventListener('click', () => {
-  if (!state.current) return;
+  if (blockedReason || !state.current || !player) return;
   player.toggle();
 });
 
 btnSkip.addEventListener('click', () => {
-  if (!state.current) return;
+  if (blockedReason || !state.current) return;
+  cancelErrorSkip();
+  clearAutoplayBlocked();
   void dispatch({ type: 'advance', qid: state.current.qid });
 });
 
 btnRetryPlayer.addEventListener('click', () => {
-  if (!state.current) return;
+  if (blockedReason || !state.current || !player) return;
   playerUnavailable = false;
   renderStage();
   player.load(state.current.id);
@@ -1386,7 +1816,7 @@ if (!fullscreenSupported) {
 
 // Keyboard shortcut: "/" focuses search input when not typing
 document.addEventListener('keydown', (event) => {
-  if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) {
+  if (blockedReason || event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) {
     return;
   }
   const active = document.activeElement;
@@ -1406,9 +1836,9 @@ document.addEventListener('keydown', (event) => {
 
 // Initial bootstrap
 function init() {
-  void loadRemoteInfo();
-
   if (isDemo) {
+    player = initPlayer();
+    roomInfoStatus = 'demo';
     const demoBlockedSong = DEMO_SONGS[DEMO_SONGS.length - 1];
     if (demoBlockedSong?.id) {
       embedFlags.set(demoBlockedSong.id, false);
@@ -1417,6 +1847,7 @@ function init() {
     searchStatus = 'done';
     searchNote.textContent = `ค้นหา: ${DEMO_QUERY}`;
     setActiveTab(initialTab);
+    renderRemotePanel();
 
     if (demoIdle) {
       handleSnapshot(createState(), { isFirst: true });
@@ -1440,6 +1871,51 @@ function init() {
     }
     return;
   }
+
+  // A room link pasted into this same tab only changes the hash; reload so it is picked up.
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash.startsWith('#o=')) window.location.reload();
+  });
+
+  const session = takeToken('o');
+  if (!session) {
+    enterBlockedGate('no_token');
+    return;
+  }
+
+  activeToken = session.token;
+  roomInfoStatus = 'loading';
+  player = initPlayer();
+  sync = createSync({
+    token: session.token,
+    roomId: session.roomId,
+    onState: (snapshot) => {
+      handleSnapshot(snapshot);
+    },
+    onControl: (action) => {
+      if (blockedReason || !state.current || !player) return;
+      if (action === 'toggle') {
+        player.toggle();
+      } else if (action === 'restart') {
+        player.restart();
+      }
+    },
+    onStatus: (status) => {
+      if (status === 'bad_key') {
+        enterBlockedGate('bad_key');
+        return;
+      }
+      if (status === 'gone') {
+        enterBlockedGate('gone');
+        return;
+      }
+      if (blockedReason) return;
+      syncStatusEl.hidden = status !== 'offline';
+    },
+    onRoom: (info) => {
+      handleRoomInfo(info);
+    },
+  });
 
   setActiveTab('results');
   renderAll();
