@@ -106,6 +106,23 @@ ul, ol { list-style: none; padding: 0; }
     border-bottom: 1px solid var(--line);
   }
 }
+.r-room-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: -4px;
+}
+.r-room-label { flex: none; }
+.r-room-name {
+  display: inline-block;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .r-name-input {
   display: block;
   width: 100%;
@@ -333,9 +350,12 @@ ul, ol { list-style: none; padding: 0; }
   font-size: 13px;
   text-align: center;
 }
+.r-status-full,
 .r-status-bad-key { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
 .r-bad-key-card { width: 100%; max-width: 420px; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
 .r-bad-key-icon { color: var(--gold); }
+.r-status-no-token .r-bad-key-icon { color: var(--neon-cyan); }
+.r-status-gone .r-bad-key-icon { color: var(--neon-pink); }
 .r-bad-key-text { font: 600 20px/1.45 var(--font-display); overflow-wrap: anywhere; }
 #r-toasts {
   position: fixed;

@@ -647,6 +647,25 @@ function handleSnapshot(snapshot, { isFirst = false } = {}) {
   renderAll();
 }
 
+// The guest code can also be rotated from another owner screen; keep this screen's QR current.
+let seenGuestEpoch = null;
+async function syncGuestEpoch(epoch) {
+  if (!Number.isInteger(epoch)) return;
+  const previous = seenGuestEpoch;
+  seenGuestEpoch = epoch;
+  if (previous === null || previous === epoch || rotatingGuest || isDemo || blockedReason) return;
+  try {
+    const fresh = await getRoom({ token: activeToken });
+    if (blockedReason || !fresh || fresh.role !== 'o') return;
+    roomInfo = fresh;
+    roomInfoStatus = 'ready';
+    renderStage();
+    renderRemotePanel();
+  } catch {
+    // The QR stays as it was; the next rotation or a reload refreshes it.
+  }
+}
+
 async function rotateGuestCode() {
   if (isDemo || blockedReason || rotatingGuest) return;
   rotatingGuest = true;
@@ -1891,6 +1910,7 @@ function init() {
     roomId: session.roomId,
     onState: (snapshot) => {
       handleSnapshot(snapshot);
+      void syncGuestEpoch(snapshot.guestEpoch);
     },
     onControl: (action) => {
       if (blockedReason || !state.current || !player) return;

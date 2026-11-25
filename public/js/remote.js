@@ -3,17 +3,20 @@ import {
   totalDurationSec,
   formatDuration,
 } from './store.js';
-import { search } from './api.js';
+import { search, fetchEmbeddable } from './api.js';
 import { createSync } from './sync.js';
+import { takeToken, forgetToken } from './session.js';
 import { createDragSort } from './drag-sort.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const NAME_STORAGE_KEY = 'karaoke.remote.name';
 const SKIP_CONFIRM_MS = 3000;
 const TOAST_TTL_MS = 3500;
-
-const params = new URLSearchParams(location.search);
-const roomKey = (params.get('k') || '').trim();
+const TERMINAL_MESSAGES = {
+  no_token: 'สแกน QR จากจอหลักเพื่อเข้าห้อง',
+  bad_key: 'รหัสห้องเปลี่ยนแล้ว สแกน QR จากจอหลักอีกครั้ง',
+  gone: 'ห้องนี้ถูกปิดแล้ว',
+};
 
 // DOM references
 const statusEl = document.getElementById('r-status');
@@ -31,10 +34,13 @@ const iconSkip = document.getElementById('r-icon-skip');
 const skipConfirmText = document.getElementById('r-skip-confirm');
 
 const mainEl = document.getElementById('r-main');
+const roomBarEl = document.getElementById('r-room-bar');
+const roomNameEl = document.getElementById('r-room-name');
 const topEl = document.getElementById('r-top');
 const nameInput = document.getElementById('r-name');
 const searchForm = document.getElementById('r-search-form');
 const searchInput = document.getElementById('r-search-input');
+const searchSubmitBtn = searchForm.querySelector('button[type="submit"]');
 const searchNote = document.getElementById('r-search-note');
 
 const tabOrder = ['results', 'queue'];
@@ -51,19 +57,25 @@ const toastsEl = document.getElementById('r-toasts');
 
 // App state
 let state = { ...createState(), playerState: 'idle' };
-let isBadKey = false;
+let terminalState = null; // null | 'no_token' | 'bad_key' | 'gone'
+let activeToken = '';
+let sync = null;
+let roomName = '';
 let activeTab = 'results';
 let searchStatus = 'idle'; // 'idle' | 'loading' | 'done' | 'error'
 let searchResults = [];
 const embedFlags = new Map();
 let lastQuery = '';
 let activeSearchController = null;
+let activeEmbedController = null;
 let skipConfirmArmed = false;
 let skipConfirmTimer = null;
 let lastCurrentQid = null;
 let lastBackdropUrl = '';
 let queueDragSort = null;
 let queueRenderPending = false;
+let queueDragInProgress = false;
+let lastQueueMoveFromDrag = false;
 
 // Icon helper (safe DOM SVG construction)
 const ICON_PATHS = {
@@ -151,7 +163,7 @@ function toCommandSong(song) {
 }
 
 function showToast(message, { warn = false } = {}) {
-  if (isBadKey) return;
+  if (terminalState) return;
   const toast = document.createElement('div');
   toast.className = warn ? 'toast toast-warn' : 'toast';
   toast.textContent = message;
@@ -176,35 +188,76 @@ function resetSkipConfirm() {
   skipConfirmArmed = false;
 }
 
-function enterBadKey() {
-  if (isBadKey) return;
-  isBadKey = true;
-  queueDragSort?.destroy();
-  queueDragSort = null;
-  resetSkipConfirm();
-  sync.stop();
-  if (activeSearchController) {
-    activeSearchController.abort();
-    activeSearchController = null;
+function renderRoomName() {
+  if (!roomBarEl || !roomNameEl) return;
+  if (roomName) {
+    roomNameEl.textContent = roomName;
+    roomNameEl.setAttribute('title', roomName);
+    roomBarEl.hidden = false;
+  } else {
+    roomNameEl.textContent = '';
+    roomNameEl.removeAttribute('title');
+    roomBarEl.hidden = true;
   }
+}
 
-  nowBarEl.hidden = true;
-  mainEl.hidden = true;
-  toastsEl.hidden = true;
-  backdropEl.classList.remove('is-on');
-
-  statusEl.className = 'r-status r-status-bad-key';
-  statusEl.replaceChildren();
-
-  const card = document.createElement('div');
-  card.className = 'r-bad-key-card glass iris';
-
+function createTerminalIcon(reason) {
   const icon = document.createElementNS(SVG_NS, 'svg');
   icon.setAttribute('class', 'r-bad-key-icon');
   icon.setAttribute('width', '56');
   icon.setAttribute('height', '56');
   icon.setAttribute('viewBox', '0 0 24 24');
   icon.setAttribute('aria-hidden', 'true');
+
+  if (reason === 'no_token') {
+    const rects = [
+      ['3', '3', '7', '7', '1.2'],
+      ['14', '3', '7', '7', '1.2'],
+      ['3', '14', '7', '7', '1.2'],
+    ];
+    for (const [x, y, width, height, rx] of rects) {
+      const rect = document.createElementNS(SVG_NS, 'rect');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', y);
+      rect.setAttribute('width', width);
+      rect.setAttribute('height', height);
+      rect.setAttribute('rx', rx);
+      rect.setAttribute('fill', 'none');
+      rect.setAttribute('stroke', 'currentColor');
+      rect.setAttribute('stroke-width', '2');
+      icon.appendChild(rect);
+    }
+    const qrBits = document.createElementNS(SVG_NS, 'path');
+    qrBits.setAttribute('d', 'M14 14h3v3h-3zM19 14h2v2M14 19h2v2M19 19h2v2');
+    qrBits.setAttribute('fill', 'none');
+    qrBits.setAttribute('stroke', 'currentColor');
+    qrBits.setAttribute('stroke-width', '2');
+    qrBits.setAttribute('stroke-linecap', 'round');
+    qrBits.setAttribute('stroke-linejoin', 'round');
+    icon.appendChild(qrBits);
+    return icon;
+  }
+
+  if (reason === 'gone') {
+    const circle = document.createElementNS(SVG_NS, 'circle');
+    circle.setAttribute('cx', '12');
+    circle.setAttribute('cy', '12');
+    circle.setAttribute('r', '10');
+    circle.setAttribute('fill', 'none');
+    circle.setAttribute('stroke', 'currentColor');
+    circle.setAttribute('stroke-width', '2');
+    icon.appendChild(circle);
+
+    const mark = document.createElementNS(SVG_NS, 'path');
+    mark.setAttribute('d', 'M12 7v6M12 16.5v.5');
+    mark.setAttribute('fill', 'none');
+    mark.setAttribute('stroke', 'currentColor');
+    mark.setAttribute('stroke-width', '2.2');
+    mark.setAttribute('stroke-linecap', 'round');
+    icon.appendChild(mark);
+    return icon;
+  }
+
   const key = document.createElementNS(SVG_NS, 'path');
   key.setAttribute('d', 'M14 3a7 7 0 0 0-6.7 9L2 17.3V22h4v-3h3v-3l2-2A7 7 0 1 0 14 3zM16 7h.01');
   key.setAttribute('fill', 'none');
@@ -213,10 +266,51 @@ function enterBadKey() {
   key.setAttribute('stroke-linejoin', 'round');
   key.setAttribute('stroke-linecap', 'round');
   icon.appendChild(key);
+  return icon;
+}
+
+function enterTerminalState(reason) {
+  if (terminalState) return;
+  terminalState = reason;
+  if (reason === 'bad_key') {
+    forgetToken('g');
+  }
+  queueDragSort?.destroy();
+  queueDragSort = null;
+  queueDragInProgress = false;
+  lastQueueMoveFromDrag = false;
+  resetSkipConfirm();
+  sync?.stop();
+  if (activeSearchController) {
+    activeSearchController.abort();
+    activeSearchController = null;
+  }
+  if (activeEmbedController) {
+    activeEmbedController.abort();
+    activeEmbedController = null;
+  }
+
+  searchInput.disabled = true;
+  if (searchSubmitBtn) searchSubmitBtn.disabled = true;
+  nameInput.disabled = true;
+
+  nowBarEl.hidden = true;
+  mainEl.hidden = true;
+  toastsEl.hidden = true;
+  backdropEl.classList.remove('is-on');
+
+  const modifier = reason.replace('_', '-');
+  statusEl.className = `r-status r-status-full r-status-${modifier}`;
+  statusEl.replaceChildren();
+
+  const card = document.createElement('div');
+  card.className = 'r-bad-key-card glass iris';
+
+  const icon = createTerminalIcon(reason);
 
   const text = document.createElement('p');
   text.className = 'r-bad-key-text';
-  text.textContent = 'ลิงก์นี้ใช้ไม่ได้แล้ว สแกน QR ที่จอหลักอีกครั้ง';
+  text.textContent = TERMINAL_MESSAGES[reason] || TERMINAL_MESSAGES.bad_key;
 
   card.append(icon, text);
   statusEl.appendChild(card);
@@ -225,10 +319,14 @@ function enterBadKey() {
 
 function updateConnectionStatus(status) {
   if (status === 'bad_key') {
-    enterBadKey();
+    enterTerminalState('bad_key');
     return;
   }
-  if (isBadKey) return;
+  if (status === 'gone') {
+    enterTerminalState('gone');
+    return;
+  }
+  if (terminalState) return;
 
   if (status === 'offline') {
     statusEl.className = 'r-status r-status-offline';
@@ -239,42 +337,45 @@ function updateConnectionStatus(status) {
   }
 }
 
-const sync = createSync({
-  key: roomKey,
-  onState: (snapshot) => {
-    if (isBadKey) return;
-    const nextQid = snapshot?.current?.qid ?? null;
-    if (nextQid !== lastCurrentQid) {
-      lastCurrentQid = nextQid;
-      resetSkipConfirm();
-    }
-    state = {
-      current: snapshot?.current ?? null,
-      queue: Array.isArray(snapshot?.queue) ? snapshot.queue : [],
-      history: Array.isArray(snapshot?.history) ? snapshot.history : [],
-      playerState: typeof snapshot?.playerState === 'string' ? snapshot.playerState : 'idle',
-    };
-    renderAll();
-  },
-  onControl: () => {
-    // Remote page has no video player
-  },
-  onStatus: (status) => {
-    updateConnectionStatus(status);
-  },
-});
+function handleRoomInfo(info) {
+  if (terminalState) return;
+  if (!info || info.role !== 'g') {
+    enterTerminalState('bad_key');
+    return;
+  }
+  const nextName = typeof info.name === 'string' ? info.name.trim() : '';
+  if (nextName) {
+    roomName = nextName;
+    renderRoomName();
+  }
+}
 
 function sendCommand(cmd) {
-  if (isBadKey) return Promise.resolve(false);
+  if (terminalState || !sync) return Promise.resolve(false);
   return sync.send(cmd).then(
     () => true,
     (err) => {
-      if (err?.status === 401 || err?.code === 'bad_key') {
-        enterBadKey();
+      if (
+        err?.status === 401 ||
+        err?.code === 'bad_token' ||
+        err?.code === 'stale_token' ||
+        err?.code === 'bad_key'
+      ) {
+        enterTerminalState('bad_key');
         return false;
       }
-      showToast('ส่งคำสั่งไม่สำเร็จ ลองอีกครั้ง', { warn: true });
-      if (cmd.type === 'move') renderQueuePanel();
+      if (err?.status === 404 || err?.code === 'no_room') {
+        enterTerminalState('gone');
+        return false;
+      }
+      if (err?.status === 409 || err?.code === 'queue_full') {
+        showToast('คิวเต็มแล้ว (200 เพลง)', { warn: true });
+      } else if (err?.status === 403 || err?.code === 'owner_only') {
+        showToast('ทำได้เฉพาะที่จอหลัก', { warn: true });
+      } else {
+        showToast('ส่งคำสั่งไม่สำเร็จ ลองอีกครั้ง', { warn: true });
+      }
+      if (cmd.type === 'move' || cmd.type === 'moveTo') renderQueuePanel();
       return false;
     }
   );
@@ -680,11 +781,28 @@ function renderQueuePanel() {
   queueDragSort = createDragSort({
     list,
     scroller: null,
-    onMove: (qid, delta) => {
-      void sendCommand({ type: 'move', qid, delta });
+    onMove: (qid, delta, beforeQid) => {
+      const fromDrag = lastQueueMoveFromDrag;
+      lastQueueMoveFromDrag = false;
+      const cmd = fromDrag
+        ? { type: 'moveTo', qid, beforeQid: beforeQid ?? null }
+        : { type: 'move', qid, delta };
+      void sendCommand(cmd);
     },
     onDragState: (isDragging) => {
-      if (!isDragging && queueRenderPending && !isBadKey) renderQueuePanel();
+      if (isDragging) {
+        queueDragInProgress = true;
+        lastQueueMoveFromDrag = false;
+        return;
+      }
+      if (queueDragInProgress) {
+        queueDragInProgress = false;
+        lastQueueMoveFromDrag = true;
+        queueMicrotask(() => {
+          lastQueueMoveFromDrag = false;
+        });
+      }
+      if (queueRenderPending && !terminalState) renderQueuePanel();
     },
   });
   if (focusQid !== null) {
@@ -706,28 +824,55 @@ function renderAll() {
 }
 
 async function checkSearchEmbeddable(results) {
-  const ids = [...new Set(results.map(song => song.id))].filter(id => !embedFlags.has(id));
+  if (terminalState || !activeToken || !Array.isArray(results) || results.length === 0) return;
+  const ids = [...new Set(results.map((song) => song.id))].filter(
+    (id) => typeof id === 'string' && id.length > 0 && !embedFlags.has(id)
+  );
   if (!ids.length) return;
+
+  if (activeEmbedController) {
+    activeEmbedController.abort();
+  }
+  const controller = new AbortController();
+  activeEmbedController = controller;
+
   try {
-    const query = new URLSearchParams({ ids: ids.join(','), k: roomKey });
-    const response = await fetch(`/api/embeddable?${query}`);
-    if (!response.ok) return;
-    const flags = await response.json();
-    for (const id of ids) {
-      if (typeof flags?.[id] === 'boolean') embedFlags.set(id, flags[id]);
+    const flags = await fetchEmbeddable(ids, {
+      signal: controller.signal,
+      token: activeToken,
+    });
+    if (activeEmbedController === controller) {
+      activeEmbedController = null;
     }
-    if (!isBadKey && searchStatus === 'done' && searchResults === results) renderResultsPanel();
-  } catch { /* Playability checks are optional; leave search and room status alone. */ }
+    if (controller.signal.aborted || terminalState) return;
+    let changed = false;
+    for (const id of ids) {
+      if (typeof flags?.[id] === 'boolean' && embedFlags.get(id) !== flags[id]) {
+        embedFlags.set(id, flags[id]);
+        changed = true;
+      }
+    }
+    if (changed && searchStatus === 'done' && searchResults === results) renderResultsPanel();
+  } catch {
+    if (activeEmbedController === controller) {
+      activeEmbedController = null;
+    }
+    /* Playability checks are optional; leave search and room status alone. */
+  }
 }
 
 async function runSearch(rawQuery) {
-  if (isBadKey) return;
+  if (terminalState || !activeToken) return;
   const query = rawQuery.trim();
   if (!query) return;
 
   lastQuery = query;
   if (activeSearchController) {
     activeSearchController.abort();
+  }
+  if (activeEmbedController) {
+    activeEmbedController.abort();
+    activeEmbedController = null;
   }
   const controller = new AbortController();
   activeSearchController = controller;
@@ -737,8 +882,8 @@ async function runSearch(rawQuery) {
   renderResultsPanel();
 
   try {
-    const result = await search(query, { signal: controller.signal, key: roomKey });
-    if (activeSearchController !== controller || isBadKey) return;
+    const result = await search(query, { signal: controller.signal, token: activeToken });
+    if (activeSearchController !== controller || terminalState) return;
     activeSearchController = null;
     searchNote.textContent = `ค้นหา: ${result.query}`;
     searchResults = result.items;
@@ -748,10 +893,19 @@ async function runSearch(rawQuery) {
     void checkSearchEmbeddable(searchResults);
   } catch (err) {
     if (err?.name === 'AbortError') return;
-    if (activeSearchController !== controller || isBadKey) return;
+    if (activeSearchController !== controller || terminalState) return;
     activeSearchController = null;
-    if (err?.status === 401 || err?.code === 'bad_key') {
-      enterBadKey();
+    if (
+      err?.status === 401 ||
+      err?.code === 'bad_token' ||
+      err?.code === 'stale_token' ||
+      err?.code === 'bad_key'
+    ) {
+      enterTerminalState('bad_key');
+      return;
+    }
+    if (err?.status === 404 || err?.code === 'no_room') {
+      enterTerminalState('gone');
       return;
     }
     searchStatus = 'error';
@@ -767,6 +921,7 @@ nameInput.addEventListener('input', () => {
 
 searchForm.addEventListener('submit', (event) => {
   event.preventDefault();
+  if (terminalState) return;
   const q = searchInput.value.trim();
   if (!q) return;
   void runSearch(q);
@@ -788,17 +943,17 @@ for (const key of tabOrder) {
 }
 
 btnRestart.addEventListener('click', () => {
-  if (!state.current) return;
+  if (terminalState || !state.current) return;
   void sendCommand({ type: 'control', action: 'restart' });
 });
 
 btnToggle.addEventListener('click', () => {
-  if (!state.current) return;
+  if (terminalState || !state.current) return;
   void sendCommand({ type: 'control', action: 'toggle' });
 });
 
 btnSkip.addEventListener('click', () => {
-  if (!state.current) return;
+  if (terminalState || !state.current) return;
   if (skipConfirmArmed) {
     const qid = state.current.qid;
     resetSkipConfirm();
@@ -818,10 +973,52 @@ btnSkip.addEventListener('click', () => {
 
 // Bootstrap
 function init() {
-  if (!roomKey) {
-    enterBadKey();
+  // A freshly scanned link opened in this same tab only changes the hash; reload to pick it up.
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash.startsWith('#g=')) window.location.reload();
+  });
+
+  const session = takeToken('g');
+  if (!session) {
+    enterTerminalState('no_token');
     return;
   }
+
+  activeToken = session.token;
+  sync = createSync({
+    token: session.token,
+    roomId: session.roomId,
+    onState: (snapshot) => {
+      if (terminalState) return;
+      const snapName = typeof snapshot?.name === 'string' ? snapshot.name.trim() : '';
+      if (snapName && !roomName) {
+        roomName = snapName;
+        renderRoomName();
+      }
+      const nextQid = snapshot?.current?.qid ?? null;
+      if (nextQid !== lastCurrentQid) {
+        lastCurrentQid = nextQid;
+        resetSkipConfirm();
+      }
+      state = {
+        current: snapshot?.current ?? null,
+        queue: Array.isArray(snapshot?.queue) ? snapshot.queue : [],
+        history: Array.isArray(snapshot?.history) ? snapshot.history : [],
+        playerState: typeof snapshot?.playerState === 'string' ? snapshot.playerState : 'idle',
+      };
+      renderAll();
+    },
+    onControl: () => {
+      // Remote page has no video player
+    },
+    onStatus: (status) => {
+      updateConnectionStatus(status);
+    },
+    onRoom: (info) => {
+      handleRoomInfo(info);
+    },
+  });
+
   setActiveTab('results');
   renderAll();
   sync.start();
