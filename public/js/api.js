@@ -1,10 +1,16 @@
-export async function search(q, { signal, key = '' } = {}) {
-  const keyPart = key ? `&k=${encodeURIComponent(key)}` : '';
-  const url = `/api/search?q=${encodeURIComponent(q)}${keyPart}`;
+function authHeaders(token) {
+  const headers = { Accept: 'application/json' };
+  if (typeof token === 'string' && token.length > 0) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function fetchJson(url, { signal, token } = {}) {
   let response;
   try {
     response = await fetch(url, {
-      headers: { Accept: 'application/json' },
+      headers: authHeaders(token),
       signal,
     });
   } catch (cause) {
@@ -33,6 +39,13 @@ export async function search(q, { signal, key = '' } = {}) {
     err.status = response.status;
     throw err;
   }
+
+  return body;
+}
+
+export async function search(q, { signal, token } = {}) {
+  const url = `/api/search?q=${encodeURIComponent(q)}`;
+  const body = await fetchJson(url, { signal, token });
 
   return {
     query: typeof body?.query === 'string' ? body.query : String(q),
@@ -40,47 +53,30 @@ export async function search(q, { signal, key = '' } = {}) {
   };
 }
 
-export async function getRemoteInfo({ signal } = {}) {
-  let response;
-  try {
-    response = await fetch('/api/remote-info', {
-      headers: { Accept: 'application/json' },
-      signal,
-    });
-  } catch (cause) {
-    if (cause?.name === 'AbortError') {
-      throw cause;
-    }
-    const err = new Error('network_error', { cause });
-    err.code = 'network_error';
+export async function getRoom({ signal, token } = {}) {
+  const body = await fetchJson('/api/room', { signal, token });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    const err = new Error('bad_response');
+    err.code = 'bad_response';
+    err.status = 200;
     throw err;
   }
 
-  let body = null;
-  try {
-    body = await response.json();
-  } catch {
-    body = null;
-  }
-
-  if (response.status !== 200) {
-    const code =
-      typeof body?.error === 'string' && body.error.length > 0
-        ? body.error
-        : `http_${response.status}`;
-    const err = new Error(code);
-    err.code = code;
-    err.status = response.status;
-    throw err;
-  }
-
-  return {
-    available: Boolean(body?.available && typeof body?.url === 'string' && body.url.length > 0),
-    url: typeof body?.url === 'string' ? body.url : null,
+  const room = {
+    roomId: typeof body.roomId === 'string' ? body.roomId : '',
+    name: typeof body.name === 'string' ? body.name : '',
+    role: typeof body.role === 'string' ? body.role : '',
   };
+  if (typeof body.guestUrl === 'string') {
+    room.guestUrl = body.guestUrl;
+  }
+  if (typeof body.qrSvg === 'string' || body.qrSvg === null) {
+    room.qrSvg = body.qrSvg;
+  }
+  return room;
 }
 
-export async function fetchEmbeddable(ids, { signal, key = '' } = {}) {
+export async function fetchEmbeddable(ids, { signal, token } = {}) {
   if (!Array.isArray(ids) || ids.length === 0) {
     return {};
   }
@@ -98,13 +94,12 @@ export async function fetchEmbeddable(ids, { signal, key = '' } = {}) {
     return {};
   }
 
-  const keyPart = key ? `&k=${encodeURIComponent(key)}` : '';
-  const url = `/api/embeddable?ids=${list.map(encodeURIComponent).join(',')}${keyPart}`;
+  const url = `/api/embeddable?ids=${list.map(encodeURIComponent).join(',')}`;
 
   let response;
   try {
     response = await fetch(url, {
-      headers: { Accept: 'application/json' },
+      headers: authHeaders(token),
       signal,
     });
   } catch {

@@ -103,6 +103,11 @@ export function createDragSort({
     });
   }
 
+  function beforeQidForMove(elements, from, to) {
+    const nextRow = to > from ? elements[to + 1] : elements[to];
+    return nextRow ? nextRow.getAttribute('data-qid') : null;
+  }
+
   function finish(commit) {
     if (!drag) return;
     const completed = drag;
@@ -123,7 +128,9 @@ export function createDragSort({
     doc.body.style.userSelect = userSelect;
     if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
     onDragState(false);
-    if (commit && delta !== 0) onMove(row.getAttribute('data-qid'), delta);
+    if (commit && delta !== 0) {
+      onMove(row.getAttribute('data-qid'), delta, beforeQidForMove(elements, from, to));
+    }
   }
 
   function onPointerDown(event) {
@@ -195,8 +202,9 @@ export function createDragSort({
     const elements = rows();
     const from = elements.indexOf(target.row);
     const delta = event.key === 'ArrowUp' ? -1 : 1;
-    if (from + delta >= 0 && from + delta < elements.length) {
-      onMove(target.row.getAttribute('data-qid'), delta);
+    const to = from + delta;
+    if (to >= 0 && to < elements.length) {
+      onMove(target.row.getAttribute('data-qid'), delta, beforeQidForMove(elements, from, to));
     }
   }
 
