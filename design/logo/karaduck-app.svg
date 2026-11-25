@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><radialGradient id="kd-glow" cx=".5" cy=".42" r=".7"><stop offset="0" stop-color="#2a1250"/><stop offset="1" stop-color="#0b0714"/></radialGradient></defs>
+  <rect width="1024" height="1024" fill="url(#kd-glow)"/>
+  <g transform="translate(512 512) scale(.82) translate(-510 -522)">
+  <defs>
+    <linearGradient id="kd-body" gradientUnits="userSpaceOnUse" x1="340" y1="190" x2="640" y2="900">
+      <stop offset="0" stop-color="#f0206f"/>
+      <stop offset=".55" stop-color="#b528d9"/>
+      <stop offset="1" stop-color="#8a2cff"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#kd-body)">
+    <circle cx="540" cy="292" r="156"/>
+    <path d="M222 424q10-6 22 2c86 54 186 64 238 2l180-48v380h-64V606c-78 74-198 94-278 34-70-50-115-140-106-200q2-12 8-16z"/>
+    <ellipse cx="522" cy="806" rx="142" ry="104" transform="rotate(-18 522 806)"/>
+  </g>
+  <path fill="#ffd166" d="M652 292c-2-30 38-52 118-94 30-14 52 6 36 28-26 24-86 42-138 70 50 6 92 22 124 34 14 8 8 26-14 28-38 4-78-6-106-28-14-12-22-24-20-38z"/>
+  <path fill="none" stroke="#0b0714" stroke-width="20" stroke-linecap="round" d="M540 268q44-56 88-10"/>
+
+  </g>
+</svg>

@@ -114,8 +114,10 @@ svg {
   filter: drop-shadow(0 0 14px rgba(255, 61, 154, 0.55));
 }
 
-.logo svg {
-  color: var(--neon-pink);
+.logo-mark {
+  width: 32px;
+  height: 32px;
+  flex: none;
 }
 
 .brand-tagline {
