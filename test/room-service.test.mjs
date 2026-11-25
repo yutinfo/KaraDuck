@@ -120,3 +120,18 @@ test('store failures ไม่เผยรายละเอียด', async ()
     assert.deepEqual(await run(broken, cmd), { status: 502, body: { error: 'store_failed' } });
   }
 });
+
+for (const type of ['enqueue', 'enqueueNext', 'playNow', 'playFromQueue', 'moveToTop', 'remove', 'move', 'moveTo', 'advance', 'clearQueue', 'clearHistory', 'rotateGuest']) {
+  test(`${type} stamps updatedAt whenever q is written and preserves createdAt`, async () => {
+    const store = await setup({ ...newRoomDoc('บ้าน', 100),
+      current: { ...SONG, qid: 'current' }, queue: [{ ...SONG, qid: 'a' }, { ...SONG, qid: 'b' }], history: [SONG] });
+    let writes = 0;
+    const tracked = { ...store, writeQueue: async (...args) => { writes++; return store.writeQueue(...args); } };
+    const cmd = { type, song: SONG, qid: type === 'advance' ? 'current' : type === 'moveToTop' ? 'b' : 'a', delta: 1, beforeQid: null };
+    assert.equal((await run(tracked, cmd, owner, { now: () => 200 })).status, 200);
+    assert.equal(writes, 1);
+    const doc = await read(store);
+    assert.equal(doc.updatedAt, 200);
+    assert.equal(doc.createdAt, 100);
+  });
+}

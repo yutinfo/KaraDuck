@@ -55,7 +55,7 @@ test('เริ่มครั้งแรกได้ลิงก์เจ้�
   assert.equal(value(r).name, 'บ้าน');
   assert.equal(value(r).role, 'o');
   assert.match(value(r).guestUrl, /^http:\/\/192\.168\.1\.23:8792\/remote#g=/);
-  assert.deepEqual(value(await get(f, '/api/config')), { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792' });
+  assert.deepEqual(value(await get(f, '/api/config')), { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792', createEnabled: true });
 });
 test('เริ่มครั้งที่สองได้ลิงก์เดิมและเก็บ secrets/rooms ด้วยสิทธิ์ 0600', async t => {
   const f = await setup(t);
@@ -170,7 +170,7 @@ test('HTTP adapter ไม่อ่าน POST ที่ไม่มีโทเ�
 test('HTTP adapter GET config เป็น local และ GET room ไม่มีโทเคนได้ 401', async t => {
   const f = await setup(t), handler = createRequestHandler(f.app);
   for (const [url, status, expected] of [
-    ['/api/config', 200, { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792' }],
+    ['/api/config', 200, { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792', createEnabled: true }],
     ['/api/room', 401, { error: 'bad_token' }],
   ]) {
     const req = request('GET', url), res = new Response();
@@ -265,5 +265,44 @@ test('HTTP adapter ตอบ JSON 500 และ HEAD ไม่ส่งเนื
     assert.equal(res.status, 500);
     assert.equal(res.body, method === 'HEAD' ? '' : '{"error":"internal"}');
     secure(res.headers); req.destroy();
+  }
+});
+
+test('local POST /api/rooms creates an owner session without authorization and stamps injected time', async t => {
+  const f = await setup(t, { now: () => 123 });
+  const handler = createRequestHandler(f.app);
+  const req = request('POST', '/api/rooms', { 'content-type': 'application/json' }), res = new Response();
+  const pending = handler(req, res);
+  req.end(JSON.stringify({ name: ' บ้านใหม่ ' }));
+  await pending;
+  assert.equal(res.status, 200);
+  const created = value(res);
+  assert.equal(created.name, 'บ้านใหม่');
+  assert.equal(created.ownerUrl, `http://192.168.1.23:8792/#o=${created.ownerToken}`);
+  const room = await f.app.handle({ method: 'GET', url: '/api/room', headers: { authorization: `Bearer ${created.ownerToken}` } });
+  assert.equal(room.status, 200);
+  assert.equal(value(room).role, 'o');
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'rooms.json'), 'utf8'));
+  assert.equal(JSON.parse(saved.rooms[created.roomId].q).createdAt, 123);
+  assert.equal(JSON.parse(saved.meta.text).creates, 1);
+  secure(res.headers);
+});
+
+test('local public route honors createDisabled and rejects both advertised and streamed oversized bodies', async t => {
+  const f = await setup(t, { createDisabled: true });
+  assert.equal(value(await get(f, '/api/config')).createEnabled, false);
+  const handler = createRequestHandler(f.app);
+  for (const [headers, body, status] of [
+    [{ 'content-type': 'application/json' }, '{"name":"บ้าน"}', 403],
+    [{ 'content-type': 'application/json', 'content-length': '20000' }, null, 413],
+    [{ 'content-type': 'application/json' }, 'ก'.repeat(5500), 413],
+  ]) {
+    const req = request('POST', '/api/rooms', headers), res = new Response();
+    const pending = handler(req, res);
+    if (body !== null) req.end(body);
+    await pending;
+    assert.equal(res.status, status);
+    assert.deepEqual(value(res), { error: status === 413 ? 'too_large' : 'create_disabled' });
+    req.destroy();
   }
 });

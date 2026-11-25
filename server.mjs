@@ -55,17 +55,18 @@ function loadSecrets(dataDir) {
 }
 
 export function createLocalApp({ publicDir = fileURLToPath(new URL('./public/', import.meta.url)),
-  dataDir = path.resolve('data'), port = 8791, getLanAddress = findLanAddress, fetchImpl = fetch, now = Date.now } = {}) {
+  dataDir = path.resolve('data'), port = 8791, getLanAddress = findLanAddress, fetchImpl = fetch, now = Date.now,
+  createDisabled = process.env.CREATE_DISABLED === '1' } = {}) {
   const { roomSecret, adminKey } = loadSecrets(dataDir);
   const store = createFileStore({ file: path.join(dataDir, 'rooms.json'), now });
   const handlers = createHandlers({ store, secret: roomSecret, adminKey, mode: 'local', dbUrl: '/local-db',
-    origin: () => `http://${getLanAddress() || 'localhost'}:${port}`, referer: () => `http://localhost:${port}/`, fetchImpl, now });
+    origin: () => `http://${getLanAddress() || 'localhost'}:${port}`, referer: () => `http://localhost:${port}/`, fetchImpl, now, createDisabled });
   let streams = 0;
   const ready = (async () => {
     let rooms = await store.listRooms();
     if (!rooms.length) {
       const roomId = makeRoomId();
-      await store.writeQueue(roomId, encodeRoomDoc(newRoomDoc('บ้าน')), 'null_etag');
+      await store.writeQueue(roomId, encodeRoomDoc(newRoomDoc('บ้าน', now())), 'null_etag');
       rooms = await store.listRooms();
     }
     const ownerLinks = [];
@@ -145,6 +146,7 @@ function readBody(request) {
 export function createRequestHandler(app, { startInterval = setInterval, stopInterval = clearInterval } = {}) {
   return async (req, res) => {
     const respond = result => {
+      if (result.status === 413) req.pause();
       res.writeHead(result.status, { ...result.headers, ...SECURITY_HEADERS, ...(result.status === 413 ? { Connection: 'close' } : {}) });
       res.end(req.method === 'HEAD' ? '' : result.body);
     };

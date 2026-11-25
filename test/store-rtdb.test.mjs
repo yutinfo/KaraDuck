@@ -48,7 +48,7 @@ test('writeQueue ส่ง if-match และ JSON string ครอบข้อ�
 });
 
 test('writePlayer ทั้ง s/c, deleteRoom และ shallow list รวม null', async () => {
-  const { store, calls } = setup([json('paused'), json({ a: 'toggle', t: 1 }), json(null), json({ [roomId]: true, SECOND: true }), json(null)]);
+  const { store, calls } = setup([json('paused'), json({ a: 'toggle', t: 1 }), json(null), json(null), json({ [roomId]: true, SECOND: true }), json(null)]);
   await store.writePlayer(roomId, 's', 'paused');
   await store.writePlayer(roomId, 'c', { a: 'toggle', t: 1 });
   await store.deleteRoom(roomId);
@@ -56,7 +56,7 @@ test('writePlayer ทั้ง s/c, deleteRoom และ shallow list รวม 
   assert.deepEqual(await store.listRooms(), []);
   assert.deepEqual(calls.map(c => [c.method, c.url]), [
     ['PUT', `${dbUrl}/rooms/${roomId}/p/s.json`], ['PUT', `${dbUrl}/rooms/${roomId}/p/c.json`],
-    ['DELETE', `${dbUrl}/rooms/${roomId}.json`], ['GET', `${dbUrl}/rooms.json?shallow=true`], ['GET', `${dbUrl}/rooms.json?shallow=true`],
+    ['DELETE', `${dbUrl}/rooms/${roomId}.json`], ['DELETE', `${dbUrl}/usage/${roomId}.json`], ['GET', `${dbUrl}/rooms.json?shallow=true`], ['GET', `${dbUrl}/rooms.json?shallow=true`],
   ]);
   assert.equal(calls[0].body, '"paused"');
   assert.deepEqual(JSON.parse(calls[1].body), { a: 'toggle', t: 1 });
@@ -65,7 +65,7 @@ test('writePlayer ทั้ง s/c, deleteRoom และ shallow list รวม 
     assert.ok(call.signal instanceof AbortSignal);
   }
   await assert.rejects(store.writePlayer(roomId, 'q', 'bad'));
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
 });
 
 test('401 invalidate แล้ว retry หนึ่งครั้งด้วยโทเคนใหม่และคำขอเดิม', async () => {
@@ -107,4 +107,45 @@ test('ทุก operation ตั้ง timeout 5000ms และเมื่อ s
     await assert.rejects(operation(), { code: 'store_failed' });
   }
   assert.equal(signals, 5);
+});
+
+test('readMeta/writeMeta use /meta.json, ETag headers, JSON strings and 412 conflicts', async () => {
+  const text = JSON.stringify({ createEnabled: true, hour: 1, creates: 2 });
+  const { store, calls } = setup([json(null, { headers: { ETag: 'null_etag' } }),
+    json(text, { headers: { ETag: '"meta1"' } }), json(text), json(null, { status: 412 })]);
+  assert.deepEqual(await store.readMeta(), { text: null, etag: 'null_etag' });
+  assert.deepEqual(await store.readMeta(), { text, etag: '"meta1"' });
+  assert.equal(await store.writeMeta(text, '"meta1"'), true);
+  assert.equal(await store.writeMeta(text, '"meta1"'), false);
+  for (const call of calls) assert.equal(call.url, `${dbUrl}/meta.json`);
+  for (const call of calls.slice(0, 2)) assert.equal(call.headers.get('x-firebase-etag'), 'true');
+  for (const call of calls.slice(2)) {
+    assert.equal(call.method, 'PUT');
+    assert.equal(call.headers.get('if-match'), '"meta1"');
+    assert.equal(call.headers.get('content-type'), 'application/json');
+    assert.equal(call.body, JSON.stringify(text));
+  }
+});
+
+test('usage reads/writes JSON strings at /usage/<roomId>.json without conditional headers', async () => {
+  const text = '{"hour":1,"searches":9}';
+  const { store, calls } = setup([json(null), json(text), json(text)]);
+  assert.equal(await store.readUsage(roomId), null);
+  assert.equal(await store.readUsage(roomId), text);
+  await store.writeUsage(roomId, text);
+  assert.deepEqual(calls.map(c => c.method), ['GET', 'GET', 'PUT']);
+  for (const call of calls) {
+    assert.equal(call.url, `${dbUrl}/usage/${roomId}.json`);
+    assert.equal(call.headers.has('if-match'), false);
+    assert.equal(call.headers.has('x-firebase-etag'), false);
+  }
+  assert.equal(calls[2].body, JSON.stringify(text));
+});
+
+test('deleteRoom deletes both room and usage; usage cleanup failure is tolerated', async () => {
+  const { store, calls } = setup([json(null), json(null, { status: 500 })]);
+  await store.deleteRoom(roomId);
+  assert.deepEqual(calls.map(c => [c.method, c.url]), [
+    ['DELETE', `${dbUrl}/rooms/${roomId}.json`], ['DELETE', `${dbUrl}/usage/${roomId}.json`],
+  ]);
 });

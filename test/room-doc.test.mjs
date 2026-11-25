@@ -13,8 +13,8 @@ test('cleanRoomName trims names and accepts only 1–40 characters', () => {
 });
 
 test('newRoomDoc creates independent empty room documents and roundtrips exactly', () => {
-  const doc = newRoomDoc('บ้าน');
-  assert.deepEqual(doc, { rev: 0, name: 'บ้าน', guestEpoch: 1, ownerEpoch: 1, current: null, queue: [], history: [] });
+  const doc = newRoomDoc('บ้าน', 123);
+  assert.deepEqual(doc, { rev: 0, name: 'บ้าน', guestEpoch: 1, ownerEpoch: 1, createdAt: 123, updatedAt: 123, current: null, queue: [], history: [] });
   assert.equal(encodeRoomDoc(doc), JSON.stringify(doc));
   assert.deepEqual(decodeRoomDoc(encodeRoomDoc(doc)), doc);
   const other = newRoomDoc('อีกบ้าน');
@@ -65,11 +65,23 @@ test('decodeRoomDoc delegates song cleanup, qid uniqueness and history cap to st
   };
   const text = JSON.stringify(raw);
   const clean = decodeRoomDoc(text);
-  assert.deepEqual(clean, { rev: 8, name: 'บ้าน', guestEpoch: 3, ownerEpoch: 2, ...deserialize(text) });
+  assert.deepEqual(clean, { rev: 8, name: 'บ้าน', guestEpoch: 3, ownerEpoch: 2, createdAt: raw.createdAt, updatedAt: raw.updatedAt, ...deserialize(text) });
   assert.equal(clean.current.by, 'แนน');
   assert.equal(clean.queue.length, 1);
   assert.equal(clean.history.length, 30);
   assert.equal(Object.hasOwn(clean.history[0], 'qid'), false);
   const duplicate = decodeRoomDoc(JSON.stringify({ ...raw, queue: [song, song] }));
   assert.equal(new Set([duplicate.current.qid, ...duplicate.queue.map(item => item.qid)]).size, 3);
+});
+
+test('legacy or invalid timestamps decode to zero without invalidating old room documents', () => {
+  for (const field of ['createdAt', 'updatedAt']) {
+    for (const value of [undefined, null, -1, 1.5, '123', {}, []]) {
+      const raw = { ...newRoomDoc('บ้าน', 123), [field]: value };
+      const doc = decodeRoomDoc(JSON.stringify(raw));
+      assert.equal(doc[field], 0);
+      assert.equal(doc[field === 'createdAt' ? 'updatedAt' : 'createdAt'], 123);
+    }
+  }
+  assert.equal(decodeRoomDoc(encodeRoomDoc(newRoomDoc('บ้าน', 0))).updatedAt, 0);
 });

@@ -162,3 +162,58 @@ test('failed persistence rejects writes without changing memory, notifying or le
   assert.deepEqual(s.readRoom('R1'), { q: 'x', p: {} });
   assert.deepEqual(events, []);
 });
+
+test('legacy files open without meta/usage, and new fields survive room writes, deletion and reloads', async t => {
+  const { file } = tempFile(t);
+  writeFileSync(file, JSON.stringify({ rooms: { R1: { q: 'old room', etag: 'old-etag', p: {} } } }));
+  let s = createFileStore({ file });
+  assert.deepEqual(await s.readQueue('R1'), { text: 'old room', etag: 'old-etag' });
+  assert.deepEqual(await s.readMeta(), { text: null, etag: 'null_etag' });
+  assert.equal(await s.readUsage('R1'), null);
+  const metaText = JSON.stringify({ createEnabled: false, hour: 1, creates: 5 });
+  const usageText = JSON.stringify({ hour: 1, searches: 9 });
+  assert.equal(await s.writeMeta(metaText, 'null_etag'), true);
+  await s.writeUsage('R1', usageText);
+  await s.writeUsage('R2', usageText);
+  const meta = await s.readMeta();
+  await s.writeQueue('R2', 'another', 'null_etag');
+  await s.writePlayer('R1', 's', 'paused');
+  s = createFileStore({ file });
+  assert.deepEqual(await s.readMeta(), meta);
+  assert.equal(await s.readUsage('R1'), usageText);
+  assert.equal(await s.readUsage('R2'), usageText);
+  assert.equal((await s.readQueue('R1')).text, 'old room');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(saved.meta.text, metaText);
+  assert.equal(saved.usage.R1, usageText);
+  await s.deleteRoom('R1');
+  s = createFileStore({ file });
+  assert.equal(await s.readUsage('R1'), null);
+  assert.equal(await s.readUsage('R2'), usageText);
+  assert.deepEqual(await s.readMeta(), meta);
+});
+
+test('meta ETags have exactly one concurrent winner and reject stale writes after reload', async t => {
+  const { file } = tempFile(t);
+  const s = createFileStore({ file });
+  assert.deepEqual(await Promise.all(['one', 'two'].map(text => s.writeMeta(text, 'null_etag'))), [true, false]);
+  const before = await s.readMeta();
+  assert.equal(await s.writeMeta('next', before.etag), true);
+  const reopened = createFileStore({ file });
+  assert.equal(await reopened.writeMeta('stale', before.etag), false);
+  assert.equal((await reopened.readMeta()).text, 'next');
+});
+
+test('failed meta/usage persistence does not modify in-memory state', async t => {
+  const { dir, file } = tempFile(t);
+  const s = createFileStore({ file });
+  await s.writeMeta('before', 'null_etag');
+  await s.writeUsage('R1', 'before');
+  const meta = await s.readMeta();
+  rmSync(dir, { recursive: true });
+  writeFileSync(dir, 'blocked');
+  await assert.rejects(s.writeMeta('after', meta.etag));
+  await assert.rejects(s.writeUsage('R1', 'after'));
+  assert.deepEqual(await s.readMeta(), meta);
+  assert.equal(await s.readUsage('R1'), 'before');
+});

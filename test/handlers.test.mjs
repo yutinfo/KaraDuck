@@ -79,7 +79,7 @@ test('search ไม่มีโทเคนไม่เรียก fetchImpl', 
 test('config ไม่ต้องมีโทเคนและไม่มี CORS', async () => {
   const { handlers } = await setup();
   const r = await handlers.config({ method: 'GET', headers: {}, get body() { assert.fail('body'); } });
-  assert.deepEqual(value(r), { mode: 'cloud', db: 'https://example.firebasedatabase.app', origin: 'https://karaoke.test' });
+  assert.deepEqual(value(r), { mode: 'cloud', db: 'https://example.firebasedatabase.app', origin: 'https://karaoke.test', createEnabled: true });
   assert.equal(Object.keys(r.headers).some(k => /access-control/i.test(k)), false);
 });
 test('command ตรวจ method, content type, byte limit และ JSON', async () => {
@@ -104,8 +104,11 @@ test('admin disabled และกุญแจผิดถูกปฏิเส�
   }
 });
 test('admin list/delete และชื่อ/action/roomId ที่ผิดรูป', async () => {
-  const { handlers } = await setup();
-  assert.deepEqual(value(await handlers.admin(adminReq({ action: 'list' }))), { rooms: [{ roomId, name: 'บ้าน', rev: 0, queueLength: 0 }] });
+  const { handlers, store } = await setup();
+  const doc = decodeRoomDoc((await store.readQueue(roomId)).text);
+  assert.deepEqual(value(await handlers.admin(adminReq({ action: 'list' }))), { createEnabled: true,
+    limits: { maxRooms: 30, createsPerHour: 20, idleHours: 24, searchesPerHour: 120 },
+    rooms: [{ roomId, name: 'บ้าน', rev: 0, queueLength: 0, current: null, createdAt: doc.createdAt, updatedAt: doc.updatedAt }] });
   for (const body of [{ action: 'create', name: ' ' }, { action: 'wrong' }, { action: 'delete', roomId: '../bad' }]) {
     assert.equal((await handlers.admin(adminReq(body))).status, 400);
   }
@@ -166,4 +169,14 @@ test('admin rotateOwner retry ไม่ทับคำสั่งที่เ�
   assert.equal(doc.name, 'ชื่อใหม่');
   assert.equal(doc.rev, 2);
   assert.equal(doc.ownerEpoch, 2);
+});
+
+test('rotateOwner stamps updatedAt using injected time and preserves createdAt', async () => {
+  const store = createFileStore();
+  await store.writeQueue(roomId, encodeRoomDoc(newRoomDoc('บ้าน', 100)), 'null_etag');
+  const { handlers } = await setup({ store, now: () => 200 });
+  assert.equal((await handlers.admin(adminReq({ action: 'rotateOwner', roomId }))).status, 200);
+  const doc = decodeRoomDoc((await store.readQueue(roomId)).text);
+  assert.equal(doc.createdAt, 100);
+  assert.equal(doc.updatedAt, 200);
 });
