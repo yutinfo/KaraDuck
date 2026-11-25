@@ -70,6 +70,27 @@ test('/admin and /admin.html serve the same document with admin CSP through app 
   }
 });
 
+test('/help and /help.html serve help.html with standard security headers', async t => {
+  const f = await setup(t);
+  await writeFile(path.join(f.publicDir, 'help.html'), '<h1>วิธีใช้</h1>');
+  const handler = createRequestHandler(f.app);
+  for (const url of ['/help', '/help.html']) {
+    for (const method of ['GET', 'HEAD']) {
+      const result = await get(f, url, method);
+      assert.equal(result.status, 200);
+      assert.equal(result.headers['Content-Type'], 'text/html; charset=utf-8');
+      assert.equal(result.body.toString(), method === 'HEAD' ? '' : '<h1>วิธีใช้</h1>');
+      for (const [key, val] of Object.entries(SECURITY_HEADERS)) assert.equal(result.headers[key], val, url);
+      const req = request(method, url), res = new Response();
+      await handler(req, res);
+      assert.equal(res.status, 200);
+      assert.equal(res.body, result.body.toString());
+      for (const [key, val] of Object.entries(SECURITY_HEADERS)) assert.equal(res.headers[key], val, url);
+      req.destroy();
+    }
+  }
+});
+
 test('เริ่มครั้งแรกได้ลิงก์เจ้าของห้อง บ้าน เรียก room ได้ 200', async t => {
   const f = await setup(t);
   assert.equal(f.ownerLinks.length, 1);

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#06050c">
+  <title>วิธีใช้ — KaraDuck</title>
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/help.css">
+</head>
+<body>
+  <div class="orbs" aria-hidden="true"></div>
+  <a class="skip-link" href="#main">ข้ามไปเนื้อหา</a>
+
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true"></span>
+        <div class="brand-text">
+          <span class="eyebrow">คู่มือการใช้งาน</span>
+          <h1>วิธีใช้ KaraDuck</h1>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a class="btn-glass topbar-btn" href="/">กลับไปหน้าหลัก</a>
+        <a class="btn-neon topbar-btn" href="/remote">เข้าร่วมห้อง</a>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <p class="intro">
+        KaraDuck เป็นเว็บร้องคาราโอเกะจาก YouTube จอหลัก (คอมหรือทีวี) เล่นเพลงและแสดงเนื้อร้อง
+        ส่วนมือถือใช้ค้นหาและสั่งเพลง เสียงออกจากจอหลัก ไม่ใช่มือถือ
+      </p>
+      <p class="demo-note">
+        ภาพในหน้านี้ใช้สาธิตเท่านั้น รหัส 6 หลักในภาพใช้เข้าห้องจริงไม่ได้ ให้ใช้รหัสที่จอหลักของคุณแสดง
+      </p>
+
+      <nav class="glass toc" aria-label="สารบัญ">
+        <h2 class="toc-title">สารบัญ</h2>
+        <ul class="toc-list">
+          <li><a href="#quick-start">เริ่มใน 3 ขั้น</a></li>
+          <li><a href="#guest">สำหรับคนสั่งเพลง (มือถือ)</a></li>
+          <li><a href="#host">สำหรับเจ้าของห้อง (จอหลัก)</a></li>
+          <li><a href="#blocked">ทำไมบางเพลงเล่นไม่ได้</a></li>
+          <li><a href="#messages">ข้อความที่อาจเจอ</a></li>
+          <li><a href="#faq">คำถามที่พบบ่อย</a></li>
+        </ul>
+      </nav>
+
+      <section id="quick-start" class="glass card" aria-labelledby="h-quick-start">
+        <h2 id="h-quick-start">เริ่มใน 3 ขั้น</h2>
+        <ol class="steps">
+          <li><strong>สร้างห้อง:</strong> เปิดเว็บนี้บนจอหลัก ใส่ชื่อห้อง แล้วกด <span class="ui-tag">สร้างห้อง</span></li>
+          <li><strong>ชวนแขก:</strong> สแกน QR จากจอหลัก หรือเปิดหน้า <a href="/remote">เข้าร่วมห้อง</a> บนมือถือ แล้วใส่รหัส 6 หลัก</li>
+          <li><strong>สั่งเพลง:</strong> พิมพ์ชื่อเพลง กด <span class="ui-tag">ค้นหา</span> แล้วกด <span class="ui-tag">เข้าคิว</span> ใต้เพลงที่ต้องการ ถ้าเพลงยังไม่เริ่ม ให้เจ้าของกด <span class="ui-tag">เล่น</span> ที่จอหลักหนึ่งครั้ง</li>
+        </ol>
+      </section>
+
+      <section id="guest" class="glass card" aria-labelledby="h-guest">
+        <h2 id="h-guest">สำหรับคนสั่งเพลง (มือถือ)</h2>
+
+        <h3>เข้าห้องได้ 3 วิธี</h3>
+        <p>เลือกเพียงวิธีเดียว ไม่ต้องสร้างห้องใหม่</p>
+        <ol class="steps">
+          <li><strong>สแกน QR:</strong> เปิดกล้องมือถือ ส่อง QR บนจอหลัก แล้วแตะลิงก์ที่กล้องแสดง</li>
+          <li><strong>ใส่รหัส:</strong> เปิดหน้า <a href="/remote">เข้าร่วมห้อง</a> บนเว็บนี้ ใส่ <span class="ui-tag">รหัสห้อง 6 หลัก</span> ตามจอหลัก ระบบจะเข้าให้เมื่อครบ 6 หลัก หรือกด <span class="ui-tag">เข้าร่วม</span></li>
+          <li><strong>เปิดลิงก์:</strong> แตะลิงก์แขกที่เจ้าของส่งมา แล้วเปิดในเบราว์เซอร์บนมือถือ</li>
+        </ol>
+        <p class="muted">
+          ถ้ามือถือจำห้องเดิมไว้ อาจเข้าห้องเดิมทันที หากต้องการเปลี่ยนห้อง ให้สแกน QR หรือเปิดลิงก์แขกของห้องใหม่
+        </p>
+        <figure class="figure figure-mobile">
+          <img
+            src="/help/img/07-phone-join.jpg"
+            alt="การ์ดเข้าร่วมห้องบนมือถือ มีช่องรหัสห้อง 6 หลักและปุ่มเข้าร่วม"
+            width="390"
+            height="844"
+            loading="lazy"
+          >
+          <figcaption>หน้าเข้าร่วมห้องบนมือถือ สำหรับกรอกรหัสห้อง 6 หลัก</figcaption>
+        </figure>
+
+        <h3>ใส่ชื่อคนสั่งเพลง</h3>
+        <p>
+          ตรวจชื่อห้องด้านบนก่อน แล้วพิมพ์ชื่อเล่นในช่อง <span class="ui-tag">ชื่อคนสั่งเพลง (ไม่ใส่ก็ได้)</span> ยาวไม่เกิน 20 ตัวอักษร
+          ชื่อจะติดกับเพลงที่คุณสั่งหลังจากนั้น และมือถือจะจำชื่อไว้ให้ เว้นว่างได้ ไม่ต้องใส่ชื่อจริงหรือข้อมูลส่วนตัว
+        </p>
+
+        <h3>ค้นหาและสั่งเพลง</h3>
+        <ol class="steps">
+          <li>พิมพ์ชื่อเพลงหรือศิลปิน แล้วกด <span class="ui-tag">ค้นหา</span> ระบบเติมคำว่า “คาราโอเกะ” ให้เอง</li>
+          <li>กด <span class="ui-tag">เข้าคิว</span> ใต้เพลงที่ต้องการ เพื่อเพิ่มท้ายคิว</li>
+          <li>ถ้าต้องการให้เป็นเพลงถัดไป กดปุ่มรูปเส้นกับลูกศรข้างปุ่มเข้าคิว ชื่อว่า <span class="ui-tag">เล่นถัดไป</span></li>
+          <li>ถ้ายังไม่มีเพลงกำลังเล่น ทั้งสองปุ่มจะเริ่มเพลงทันที หากไม่มีเสียง ให้เจ้าของกด <span class="ui-tag">เล่น</span> ที่จอหลักหนึ่งครั้ง</li>
+        </ol>
+        <p class="muted">
+          ป้าย <span class="pill is-cyan">ในคิวแล้ว</span> บอกว่าเพลงกำลังเล่นหรือรออยู่แล้ว
+          ป้าย <span class="pill is-warn">เล่นที่นี่ไม่ได้</span> หมายถึงต้องเลือกคลิปอื่น (<a href="#blocked">ดูเหตุผล</a>)
+        </p>
+        <figure class="figure figure-mobile">
+          <img
+            src="/help/img/10-phone-search.jpg"
+            alt="ผลค้นหาบนมือถือ แสดงการ์ดเพลงและปุ่มเข้าคิวกับปุ่มรูปเส้นและลูกศรสำหรับเล่นถัดไป"
+            width="780"
+            height="1688"
+            loading="lazy"
+          >
+          <figcaption>ผลค้นหาบนมือถือ พร้อมปุ่มเข้าคิวและปุ่มเล่นถัดไป</figcaption>
+        </figure>
+
+        <h3>ดูและจัดคิว</h3>
+        <p>
+          แตะแท็บ <span class="ui-tag">คิว</span> เพื่อดูเพลงที่กำลังร้องและเพลงที่รอ คุณจัดลำดับเพลงของคนอื่นในห้องได้ด้วย จึงควรตกลงกันก่อน
+        </p>
+        <ul class="bullet-list">
+          <li>จับปุ่มจุดค้างไว้แล้วลากเพื่อย้ายลำดับ</li>
+          <li>กด <span class="ui-tag">ขึ้นบนสุด</span> เพื่อให้เพลงนั้นเป็นเพลงถัดไป</li>
+          <li>กด <span class="ui-tag">ลบ</span> เพื่อเอาเพลงออกจากคิว</li>
+        </ul>
+        <figure class="figure figure-mobile">
+          <img
+            src="/help/img/11-phone-queue.jpg"
+            alt="แท็บคิวบนมือถือ มีเพลงกำลังร้อง คิวถัดไป ปุ่มลาก ขึ้นบนสุด และลบ พร้อมแถบควบคุมล่างจอ"
+            width="390"
+            height="844"
+            loading="lazy"
+          >
+          <figcaption>แท็บคิวและแถบควบคุมเพลงด้านล่างบนมือถือ</figcaption>
+        </figure>
+
+        <p>ปุ่มที่แถบล่างใช้ควบคุมเพลงบนจอหลัก:</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">ปุ่ม</th>
+                <th scope="col">วิธีใช้</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ui-tag">เริ่มใหม่</span></td>
+                <td>ปุ่มซ้ายรูปย้อนกลับ เริ่มเพลงปัจจุบันจากต้น</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">เล่น</span> / <span class="ui-tag">หยุดชั่วคราว</span></td>
+                <td>ปุ่มกลางรูปสามเหลี่ยมหรือขีดคู่ ใช้เล่นหรือหยุดชั่วคราว</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ข้ามเพลง</span></td>
+                <td>ปุ่มขวา กดครั้งแรกขึ้น <span class="ui-tag">แน่ใจ?</span> กดซ้ำภายใน 3 วินาทีเพื่อยืนยัน</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>สิ่งที่แขกทำไม่ได้</h3>
+        <p class="muted">
+          แขกล้างคิวทั้งหมด ล้างประวัติ เปลี่ยนรหัสแขก หรือปิดห้องไม่ได้ ให้เจ้าของทำจากจอหลัก
+          หน้ามือถือไม่มีปุ่ม <span class="ui-tag">เล่นเลย</span> และไม่มีแท็บประวัติ แต่ใช้ <span class="ui-tag">เล่นถัดไป</span> หรือจัดลำดับในแท็บ <span class="ui-tag">คิว</span> ได้
+        </p>
+      </section>
+
+      <section id="host" class="glass card" aria-labelledby="h-host">
+        <h2 id="h-host">สำหรับเจ้าของห้อง (จอหลัก)</h2>
+
+        <h3>สร้างห้อง</h3>
+        <ol class="steps">
+          <li>เปิดเว็บนี้บนคอมที่ต่อทีวี หรือเบราว์เซอร์ของจอหลัก</li>
+          <li>ที่การ์ด <span class="ui-tag">สร้างห้องคาราโอเกะ</span> ใส่ <span class="ui-tag">ชื่อห้อง</span> ยาวไม่เกิน 40 ตัวอักษร เช่น บ้านคุณยาย</li>
+          <li>กด <span class="ui-tag">สร้างห้อง</span> คุณเป็นเจ้าของห้องบนเบราว์เซอร์นี้ทันที</li>
+        </ol>
+        <p class="muted">
+          หากมี YouTube Premium ลองเปิดจอหลักด้วยเบราว์เซอร์ที่เข้าสู่ระบบบัญชีนั้นไว้ การเล่นผ่านเว็บนี้ยังอาจมีโฆษณาได้ จึงไม่รับประกันว่าจะไม่มีโฆษณาทุกครั้ง
+        </p>
+        <figure class="figure">
+          <img
+            src="/help/img/01-create-room.jpg"
+            alt="การ์ดสร้างห้องคาราโอเกะ มีช่องชื่อห้อง ปุ่มสร้างห้อง และทางเข้าเข้าร่วมห้อง"
+            width="1280"
+            height="800"
+            loading="lazy"
+          >
+          <figcaption>การ์ดสร้างห้องคาราโอเกะเมื่อเปิดหน้าหลักครั้งแรก</figcaption>
+        </figure>
+
+        <h3>ทำความรู้จักจอหลัก</h3>
+        <figure class="figure">
+          <img
+            src="/help/img/02-host-screen.jpg"
+            alt="จอหลักมีวิดีโอด้านซ้าย แถบกำลังร้องและปุ่มควบคุมด้านล่าง และแผงค้นหาเพลงด้านขวา"
+            width="1440"
+            height="900"
+            loading="lazy"
+          >
+          <figcaption>หน้าจอหลัก แบ่งเป็นจอเพลง แถบกำลังร้อง และแผงด้านขวา</figcaption>
+        </figure>
+        <ul class="bullet-list">
+          <li><strong>วิดีโอ:</strong> อยู่ด้านซ้าย แสดงภาพและเนื้อร้อง</li>
+          <li><strong>แถบ <span class="ui-tag">กำลังร้อง</span>:</strong> แสดงชื่อเพลง ความยาว ช่อง ชื่อคนขอถ้ามี และเพลงถัดไป</li>
+          <li><strong>ปุ่มควบคุม:</strong> <span class="ui-tag">เล่น</span> / <span class="ui-tag">หยุด</span> (ตัวอ่านหน้าจออ่านว่า <span class="ui-tag">หยุดชั่วคราว</span>), <span class="ui-tag">เริ่มใหม่</span>, <span class="ui-tag">ข้ามเพลง</span> และ <span class="ui-tag">โหมดเวที</span> (ขยายเต็มจอ กด <span class="ui-tag">ออกจากโหมดเวที</span> หรือ Esc เพื่อกลับ บางเบราว์เซอร์ไม่มีปุ่มนี้)</li>
+        </ul>
+
+        <p>แผงด้านขวามี 4 แท็บ:</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">แท็บ</th>
+                <th scope="col">ใช้ทำอะไร</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ui-tag">ผลค้นหา</span></td>
+                <td>เลือกเพลงจากคำที่ค้น</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">คิว</span></td>
+                <td>ดูเพลงที่รอและจัดลำดับ</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ร้องไปแล้ว</span></td>
+                <td>ดูประวัติ กด <span class="ui-tag">เข้าคิว</span> เพื่อร้องซ้ำ หรือกด <span class="ui-tag">ล้างประวัติ</span> แล้วยืนยัน <span class="ui-tag">แน่ใจ?</span></td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">มือถือ</span></td>
+                <td>ดู QR รหัสห้อง และจัดการการเข้าห้อง</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>ค้นหาและเพิ่มเพลง</h3>
+        <p>พิมพ์ชื่อเพลงหรือศิลปินในช่องด้านขวาบน แล้วกด <span class="ui-tag">ค้นหา</span> ระบบเติมคำว่า “คาราโอเกะ” ให้เอง</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">ปุ่ม</th>
+                <th scope="col">ผลที่เกิดขึ้น</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ui-tag">เข้าคิว</span></td>
+                <td>เพิ่มท้ายคิว ถ้ายังไม่มีเพลงกำลังเล่น จะเริ่มทันที</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">เล่นถัดไป</span></td>
+                <td>เพิ่มเป็นเพลงแรกที่รอ ถ้ายังไม่มีเพลงกำลังเล่น จะเริ่มทันที</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">เล่นเลย</span></td>
+                <td>เปลี่ยนมาเล่นทันที เพลงที่กำลังเล่นย้ายไปประวัติ</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <figure class="figure">
+          <img
+            src="/help/img/03-host-search.jpg"
+            alt="แท็บผลค้นหาบนจอหลัก มีการ์ดเพลง ป้ายในคิวแล้ว และปุ่มเข้าคิวพร้อมปุ่มเล่นถัดไปและเล่นเลย"
+            width="1440"
+            height="900"
+            loading="lazy"
+          >
+          <figcaption>แท็บผลค้นหาบนจอหลัก พร้อมป้ายสถานะและปุ่มสั่งเพลง</figcaption>
+        </figure>
+        <p class="muted">
+          ป้าย <span class="pill is-cyan">ในคิวแล้ว</span> บอกว่าเพลงกำลังเล่นหรืออยู่ในคิวแล้ว (ยังสั่งซ้ำได้)
+          ส่วนป้าย <span class="pill is-warn">เล่นที่นี่ไม่ได้</span> หมายถึงเพลงนั้นเล่นผ่านหน้านี้ไม่ได้ ปุ่มสั่งเพลงจะกดไม่ได้ ให้เลือกคลิปอื่น
+        </p>
+
+        <h3>จัดคิว</h3>
+        <p>เปิดแท็บ <span class="ui-tag">คิว</span> ด้านบนเป็นเพลงที่กำลังร้อง ด้านล่างเป็น <span class="ui-tag">คิวถัดไป</span></p>
+        <figure class="figure">
+          <img
+            src="/help/img/04-host-queue.jpg"
+            alt="แท็บคิวบนจอหลัก แสดงเพลงกำลังร้อง ลำดับเพลงรอ ปุ่มลาก ปุ่มจัดการรายเพลง และปุ่มล้างคิว"
+            width="1440"
+            height="900"
+            loading="lazy"
+          >
+          <figcaption>แท็บคิวบนจอหลักสำหรับสลับลำดับและจัดการเพลงที่รอ</figcaption>
+        </figure>
+        <ul class="bullet-list">
+          <li><strong>ลากสลับลำดับ:</strong> จับปุ่มจุดค้างไว้แล้วลากขึ้นหรือลง (ใช้ปุ่มลูกศรขึ้น–ลงบนแป้นพิมพ์ได้ด้วย)</li>
+          <li><span class="ui-tag">ขึ้นบนสุด</span> ย้ายเพลงเป็นเพลงถัดไป ไม่ขัดเพลงที่กำลังร้อง</li>
+          <li><span class="ui-tag">เล่นเลย</span> เล่นเพลงนั้นทันที เพลงเดิมย้ายไปประวัติ</li>
+          <li><span class="ui-tag">ลบ</span> เอาเพลงออกจากคิว</li>
+          <li><span class="ui-tag">ล้างคิว</span> กดแล้วกด <span class="ui-tag">แน่ใจ?</span> เพื่อลบเพลงที่รอทั้งหมด เพลงที่กำลังเล่นยังเล่นต่อ</li>
+        </ul>
+
+        <h3>ชวนแขกเข้าห้อง</h3>
+        <p>กดแท็บ <span class="ui-tag">มือถือ</span> หรือปุ่ม <span class="ui-tag">สั่งเพลงจากมือถือ</span> ด้านบนจอหลัก แล้วเลือกวิธีที่สะดวก:</p>
+        <ol class="steps">
+          <li>ให้แขกเปิดกล้องมือถือ ส่อง QR และแตะลิงก์ที่ขึ้นมา</li>
+          <li>ให้แขกเปิดหน้า <a href="/remote">เข้าร่วมห้อง</a> บนเว็บนี้ แล้วใส่รหัส 6 หลักตามจอหลัก</li>
+          <li>กด <span class="ui-tag">คัดลอกลิงก์แขก</span> แล้วส่งให้เพื่อน</li>
+        </ol>
+        <figure class="figure">
+          <img
+            src="/help/img/05-host-phone-tab.jpg"
+            alt="แท็บมือถือ แสดง QR ลิงก์เข้าห้อง รหัส 6 หลัก และปุ่มคัดลอกลิงก์แขก เปลี่ยนรหัสแขก และปิดห้อง"
+            width="800"
+            height="500"
+            loading="lazy"
+          >
+          <figcaption>แท็บมือถือ แสดง QR รหัส 6 หลัก และปุ่มจัดการห้อง</figcaption>
+        </figure>
+        <p class="muted">ตอนยังไม่มีเพลง จอหลักจะแสดง QR และรหัส 6 หลักกลางจอให้แขกสแกนได้ทันที</p>
+        <figure class="figure">
+          <img
+            src="/help/img/06-host-idle-qr-pin.jpg"
+            alt="จอหลักตอนยังไม่มีเพลง มีรูปไมโครโฟน QR และรหัส 6 หลักกลางจอ ด้านขวาเปิดแท็บผลค้นหาที่ยังว่าง"
+            width="1440"
+            height="900"
+            loading="lazy"
+          >
+          <figcaption>จอหลักตอนยังไม่มีเพลง แสดง QR และรหัส 6 หลักกลางจอ</figcaption>
+        </figure>
+
+        <h3>เปลี่ยนรหัสแขก และปิดห้อง</h3>
+        <ul class="bullet-list">
+          <li><strong>เปลี่ยนรหัสแขก:</strong> เปิดแท็บ <span class="ui-tag">มือถือ</span> กด <span class="ui-tag">เปลี่ยนรหัสแขก</span> แล้วกด <span class="ui-tag">แน่ใจ?</span> มือถือทุกเครื่องจะใช้สิทธิ์เดิมต่อไม่ได้ ต้องสแกน QR หรือใส่รหัสใหม่ คิวและประวัติยังอยู่</li>
+          <li><strong>ปิดห้อง:</strong> กด <span class="ui-tag">ปิดห้อง</span> แล้วกด <span class="ui-tag">กดอีกครั้งเพื่อปิดห้อง</span> ห้อง คิว และประวัติจะถูกลบ กู้คืนไม่ได้ มือถือที่เข้าอยู่จะเห็น <span class="ui-tag">ห้องนี้ถูกปิดแล้ว</span> หากจะร้องต่อให้กด <span class="ui-tag">สร้างห้องใหม่</span></li>
+          <li><strong>กลับเข้าห้องเดิม:</strong> เปิดหน้าแรกด้วยเบราว์เซอร์เดิม เครื่องจะจำห้องและกลับเข้าให้เอง หากล้างข้อมูลเบราว์เซอร์หรือเปิดหน้าต่างส่วนตัว เครื่องจะจำห้องไม่ได้ (QR และรหัส 6 หลักใช้เข้าหน้ามือถือเท่านั้น ไม่ได้ให้สิทธิ์เจ้าของห้อง)</li>
+        </ul>
+      </section>
+
+      <section id="blocked" class="glass iris card card-highlight" aria-labelledby="h-blocked">
+        <span class="pill is-warn">เล่นที่นี่ไม่ได้</span>
+        <h2 id="h-blocked">ทำไมบางเพลงขึ้นว่า เล่นที่นี่ไม่ได้</h2>
+        <ul class="bullet-list">
+          <li>KaraDuck เล่นเพลงผ่านตัวเล่นของ YouTube ที่ฝังในหน้าเว็บ เจ้าของวิดีโอบางรายไม่อนุญาตให้เล่นวิดีโอของตัวเองนอกเว็บ YouTube</li>
+          <li>ระบบถาม YouTube ให้ก่อนแล้วติดป้ายไว้ เพื่อไม่ให้เพลงที่เล่นไม่ได้เข้าไปเสียคิว</li>
+          <li>ช่องคาราโอเกะรายใหญ่บางช่องปิดการเล่นแบบนี้ทั้งช่อง เพลงสากลจึงเจอป้ายนี้บ่อยกว่า</li>
+          <li><strong>วิธีแก้:</strong> เลื่อนหาเพลงเดียวกันจากช่องอื่นที่ไม่มีป้าย หรือเพิ่มคำค้น เช่น ชื่อเพลงตามด้วยชื่อศิลปิน</li>
+          <li>เรื่องนี้แก้ที่ KaraDuck ไม่ได้ เพราะเป็นการตั้งค่าของเจ้าของวิดีโอ</li>
+        </ul>
+      </section>
+
+      <section id="messages" class="glass card" aria-labelledby="h-messages">
+        <h2 id="h-messages">ข้อความที่อาจเจอ</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">ถ้าเห็น…</th>
+                <th scope="col">ให้ทำ…</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ui-tag">รหัสไม่ถูกต้อง ดูรหัสบนจอหลักอีกครั้ง</span></td>
+                <td>ตรวจตัวเลขบนจอหลักอีกครั้ง อย่าใช้รหัสตัวอย่างในคู่มือ</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ใส่รหัสให้ครบ 6 หลัก</span></td>
+                <td>ใส่ตัวเลขให้ครบ 6 หลัก แล้วกด <span class="ui-tag">เข้าร่วม</span></td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">มีการลองรหัสผิดบ่อยเกินไป รอสักครู่แล้วลองใหม่ หรือสแกน QR แทน</span></td>
+                <td>รอจนเปลี่ยนนาที หรือใช้ QR หรือลิงก์แขกแทน</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">เข้าร่วมไม่สำเร็จ ลองอีกครั้ง</span></td>
+                <td>ตรวจอินเทอร์เน็ตแล้วลองใหม่ หรือขอลิงก์แขกจากเจ้าของ</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">รหัสห้องเปลี่ยนแล้ว สแกน QR จากจอหลักอีกครั้ง</span></td>
+                <td>สแกน QR ใหม่ เปิดลิงก์ใหม่ หรือใส่รหัสใหม่จากจอหลัก</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ห้องนี้ถูกปิดแล้ว</span></td>
+                <td>ห้องเดิมเข้าไม่ได้ ให้เจ้าของสร้างห้องใหม่และชวนอีกครั้ง</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ลิงก์ห้องนี้ใช้ไม่ได้แล้ว</span></td>
+                <td>ลิงก์ห้องหมดอายุหรือถูกลบแล้ว หากต้องการใช้ต่อให้สร้างห้องใหม่</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">คิวเต็มแล้ว (200 เพลง)</span></td>
+                <td>รอเพลงในคิวเล่นจบ หรือลบเพลงที่ไม่ต้องการก่อนเพิ่ม</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ห้องเต็มแล้ว ลองใหม่ภายหลัง</span></td>
+                <td>รอให้มีห้องถูกปิดแล้วลองสร้างใหม่</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">มีคนสร้างห้องเยอะเกินไปในชั่วโมงนี้ ลองใหม่อีกสักครู่</span></td>
+                <td>รอขึ้นชั่วโมงใหม่แล้วลองสร้างอีกครั้ง</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ตอนนี้ปิดรับการสร้างห้องใหม่</span></td>
+                <td>เข้าห้องที่มีอยู่ด้วย QR หรือรอเปิดรับอีกครั้ง</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ใส่ชื่อห้องก่อน</span></td>
+                <td>พิมพ์ชื่อห้องก่อนกด <span class="ui-tag">สร้างห้อง</span></td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ชื่อห้องใช้ไม่ได้ (ยาวได้ไม่เกิน 40 ตัวอักษร)</span></td>
+                <td>ใช้ชื่อที่ไม่ว่างและยาวไม่เกิน 40 ตัวอักษร</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">สร้างห้องไม่สำเร็จ ลองอีกครั้ง</span></td>
+                <td>ตรวจอินเทอร์เน็ตแล้วลองสร้างอีกครั้ง</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">เล่นที่นี่ไม่ได้</span></td>
+                <td>เลือกเพลงเดียวกันจากคลิปหรือช่องอื่น (<a href="#blocked">ดูเหตุผล</a>)</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">เพลงนี้เล่นในหน้านี้ไม่ได้ กำลังข้ามไปเพลงถัดไป</span></td>
+                <td>รอระบบข้ามเพลง แล้วค้นหาคลิปอื่นมาแทน</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">โหลดตัวเล่น YouTube ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่</span></td>
+                <td>ตรวจเน็ตที่จอหลัก แล้วกด <span class="ui-tag">ลองใหม่</span></td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">กด ▶ หนึ่งครั้งเพื่อเปิดเสียง หลังจากนั้นเพลงจะเล่นต่อเองจากมือถือได้</span></td>
+                <td>กด <span class="ui-tag">เล่น</span> บนจอหลักหนึ่งครั้งเพื่อให้เบราว์เซอร์ยอมเปิดเสียง</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ค้นหาไม่สำเร็จ</span></td>
+                <td>ตรวจเน็ตแล้วกด <span class="ui-tag">ลองใหม่</span> หากค้นบ่อยจนครบ 120 ครั้งในห้อง ให้รอขึ้นชั่วโมงใหม่</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ไม่พบเพลง ลองพิมพ์ชื่อเพลงหรือชื่อศิลปินแบบอื่น</span></td>
+                <td>ลองสะกดใหม่ หรือค้นด้วยชื่อศิลปิน</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">กำลังเชื่อมต่อเซิร์ฟเวอร์ใหม่…</span> / <span class="ui-tag">กำลังเชื่อมต่อใหม่…</span></td>
+                <td>ตรวจเน็ตและเปิดหน้าค้างไว้ ระบบจะลองต่อใหม่ ตรวจคิวก่อนสั่งซ้ำ</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ส่งคำสั่งไม่สำเร็จ ลองอีกครั้ง</span></td>
+                <td>ตรวจคิวก่อนว่าคำสั่งสำเร็จหรือยัง แล้วลองใหม่เมื่อเน็ตกลับมา</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ทำได้เฉพาะที่จอหลัก</span></td>
+                <td>ให้เจ้าของทำรายการจากจอหลัก</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">คัดลอกลิงก์ไม่ได้</span></td>
+                <td>อนุญาตการคัดลอกในเบราว์เซอร์ หรือให้แขกสแกน QR / ใส่รหัสแทน</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">เปลี่ยนรหัสแล้ว แต่โหลด QR ใหม่ไม่สำเร็จ ลองรีเฟรชหน้า</span></td>
+                <td>รีเฟรชจอหลักก่อนชวนแขกใหม่ รหัสเดิมถูกยกเลิกแล้ว</td>
+              </tr>
+              <tr>
+                <td><span class="ui-tag">ปิดห้องไม่สำเร็จ ลองอีกครั้ง</span></td>
+                <td>ตรวจเน็ตแล้วลองปิดอีกครั้ง</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="faq" class="glass card" aria-labelledby="h-faq">
+        <h2 id="h-faq">คำถามที่พบบ่อย</h2>
+        <dl class="faq-list">
+          <div class="faq-item">
+            <dt>1. มีโฆษณาไหม?</dt>
+            <dd>อาจมี เพราะเล่นผ่าน YouTube ถ้าคุณมี YouTube Premium ลองใช้เบราว์เซอร์จอหลักที่เข้าสู่ระบบบัญชีนั้นไว้ แต่เว็บนี้ไม่รับประกันว่าจะไม่มีโฆษณาทุกครั้ง</dd>
+          </div>
+          <div class="faq-item">
+            <dt>2. ปรับคีย์เพลง ตัดเสียงร้อง หรือให้คะแนนได้ไหม?</dt>
+            <dd>ไม่ได้ เว็บใช้ตัวเล่นของ YouTube ให้ค้นหาคลิปที่ทำคีย์หรือเสียงดนตรีแบบที่ต้องการแทน</dd>
+          </div>
+          <div class="faq-item">
+            <dt>3. ห้องอยู่ได้นานแค่ไหน?</dt>
+            <dd>ห้องที่ไม่มีการเพิ่ม ลบ ย้าย หรือข้ามเพลงเกิน 24 ชั่วโมงจะถูกปิดอัตโนมัติ การค้นหาและกดเล่น/หยุดไม่ต่ออายุห้อง</dd>
+          </div>
+          <div class="faq-item">
+            <dt>4. ใช้พร้อมกันได้กี่คน?</dt>
+            <dd>ไม่ได้จำกัดจำนวนมือถือต่อห้อง ขึ้นกับอินเทอร์เน็ต ทุกคนในห้องใช้คิวสูงสุด 200 เพลง และค้นหาได้รวม 120 ครั้งต่อชั่วโมงร่วมกัน</dd>
+          </div>
+          <div class="faq-item">
+            <dt>5. เน็ตหลุดแล้วเป็นอย่างไร?</dt>
+            <dd>หน้าเว็บจะพยายามเชื่อมต่อใหม่ คิวที่บันทึกสำเร็จแล้วไม่หายเพราะเน็ตมือถือหลุด หากเน็ตจอหลักหลุด เพลงอาจหยุดรอโหลด เมื่อกลับมาให้ตรวจคิวก่อนสั่งซ้ำ</dd>
+          </div>
+          <div class="faq-item">
+            <dt>6. ทำไมบางเพลงเล่นไม่ได้ ทั้งที่ค้นเจอ?</dt>
+            <dd>เจ้าของวิดีโอไม่อนุญาตให้เล่นนอก YouTube หรือคลิปมีข้อจำกัดอื่น ให้เลือกคลิปจากช่องอื่นของเพลงเดียวกันแทน (<a href="#blocked">ดูรายละเอียด</a>)</dd>
+          </div>
+          <div class="faq-item">
+            <dt>7. ทำไมสั่งเพลงแล้วไม่มีเสียง หรือปิดจอหลักแล้วเพลงหยุด?</dt>
+            <dd>มือถือเป็นที่สั่งเพลง เสียงเล่นที่จอหลัก ต้องเปิดจอหลักไว้ ตรวจลำโพงและระดับเสียง แล้วกด <span class="ui-tag">เล่น</span> ครั้งแรกบนจอหลักหากเบราว์เซอร์ยังไม่เปิดเสียง</dd>
+          </div>
+          <div class="faq-item">
+            <dt>8. ต้องต่อ Wi-Fi เดียวกันไหม?</dt>
+            <dd>ไม่จำเป็น เมื่อใช้เว็บนี้ออนไลน์ มือถือใช้เน็ตมือถือได้เลย ขอแค่จอหลักและมือถือทุกเครื่องต่ออินเทอร์เน็ต</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a class="btn-glass topbar-btn" href="/">กลับไปหน้าหลัก</a>
+      <a class="btn-neon topbar-btn" href="/remote">เข้าร่วมห้อง</a>
+    </footer>
+  </div>
+</body>
+</html>

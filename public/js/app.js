@@ -21,6 +21,8 @@ const ADVANCE_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
 const REPORT_DEBOUNCE_MS = 1000;
 const AUTOPLAY_HINT_TEXT =
   'กด ▶ หนึ่งครั้งเพื่อเปิดเสียง หลังจากนั้นเพลงจะเล่นต่อเองจากมือถือได้';
+const BLOCKED_REASON_TEXT =
+  'เจ้าของวิดีโอไม่อนุญาตให้เล่นนอก YouTube ลองเลือกเพลงเดียวกันจากช่องอื่น';
 const GATE_MESSAGES = {
   no_token: {
     title: 'สร้างห้องคาราโอเกะ',
@@ -987,9 +989,15 @@ function createPoster(song, { blocked = false } = {}) {
   }
 
   if (blocked) {
-    const badge = document.createElement('span');
-    badge.className = 'pill is-warn poster-inq';
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'pill is-warn poster-inq badge-blocked';
     badge.textContent = 'เล่นที่นี่ไม่ได้';
+    badge.setAttribute('aria-label', 'เล่นที่นี่ไม่ได้ ดูเหตุผล');
+    badge.setAttribute('title', BLOCKED_REASON_TEXT);
+    badge.addEventListener('click', () => {
+      showToast(BLOCKED_REASON_TEXT, { warn: true });
+    });
     poster.appendChild(badge);
   } else if (isInQueueOrCurrent(song.id)) {
     const badge = document.createElement('span');
@@ -1353,7 +1361,24 @@ function renderResultsPanel() {
     grid.appendChild(li);
   }
 
-  panel.append(rowhead, grid);
+  const hasBlocked = searchResults.some((song) => embedFlags.get(song.id) === false);
+  if (hasBlocked) {
+    const note = document.createElement('p');
+    note.className = 'blocked-note';
+    const link = document.createElement('a');
+    link.className = 'blocked-note-link';
+    link.href = '/help#blocked';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'ทำไม?';
+    note.append(
+      document.createTextNode('บางเพลงเล่นที่นี่ไม่ได้เพราะเจ้าของวิดีโอไม่อนุญาต '),
+      link
+    );
+    panel.append(rowhead, note, grid);
+  } else {
+    panel.append(rowhead, grid);
+  }
 }
 
 function resetConfirm(key) {

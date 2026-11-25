@@ -21,6 +21,8 @@ const JOIN_ERRORS = {
   too_many_attempts: 'มีการลองรหัสผิดบ่อยเกินไป รอสักครู่แล้วลองใหม่ หรือสแกน QR แทน',
 };
 const JOIN_GENERIC_ERROR = 'เข้าร่วมไม่สำเร็จ ลองอีกครั้ง';
+const BLOCKED_REASON_TEXT =
+  'เจ้าของวิดีโอไม่อนุญาตให้เล่นนอก YouTube ลองเลือกเพลงเดียวกันจากช่องอื่น';
 
 const statusEl = document.getElementById('r-status');
 const statusBannerEl = document.getElementById('r-status-banner');
@@ -617,10 +619,20 @@ function renderResultsPanel() {
 
     info.append(title, meta);
 
-    if (blocked || isInQueueOrCurrent(song.id)) {
+    if (blocked) {
+      const badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'pill is-warn badge-blocked';
+      badge.textContent = 'เล่นที่นี่ไม่ได้';
+      badge.setAttribute('aria-label', 'เล่นที่นี่ไม่ได้ ดูเหตุผล');
+      badge.addEventListener('click', () => {
+        showToast(BLOCKED_REASON_TEXT, { warn: true });
+      });
+      thumb.appendChild(badge);
+    } else if (isInQueueOrCurrent(song.id)) {
       const badge = document.createElement('span');
-      badge.className = blocked ? 'pill is-warn' : 'pill is-cyan';
-      badge.textContent = blocked ? 'เล่นที่นี่ไม่ได้' : 'ในคิวแล้ว';
+      badge.className = 'pill is-cyan';
+      badge.textContent = 'ในคิวแล้ว';
       thumb.appendChild(badge);
     }
 
@@ -671,6 +683,23 @@ function renderResultsPanel() {
     info.appendChild(actions);
     li.append(thumb, info);
     list.appendChild(li);
+  }
+
+  const hasBlocked = searchResults.some((song) => embedFlags.get(song.id) === false);
+  if (hasBlocked) {
+    const note = document.createElement('p');
+    note.className = 'blocked-note';
+    const link = document.createElement('a');
+    link.className = 'blocked-note-link';
+    link.href = '/help#blocked';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'ทำไม?';
+    note.append(
+      document.createTextNode('บางเพลงเล่นที่นี่ไม่ได้เพราะเจ้าของวิดีโอไม่อนุญาต '),
+      link
+    );
+    panel.appendChild(note);
   }
 
   panel.appendChild(list);
