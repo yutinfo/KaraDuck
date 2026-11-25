@@ -352,11 +352,66 @@ ul, ol { list-style: none; padding: 0; }
 }
 .r-status-full,
 .r-status-bad-key { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
-.r-bad-key-card { width: 100%; max-width: 420px; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+.r-bad-key-card { width: 100%; max-width: 420px; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.r-join-logo { width: 64px; height: 64px; flex: none; display: block; filter: drop-shadow(0 0 18px rgba(255,61,154,.4)); }
+.r-join-icon { display: flex; align-items: center; justify-content: center; }
 .r-bad-key-icon { color: var(--gold); }
 .r-status-no-token .r-bad-key-icon { color: var(--neon-cyan); }
 .r-status-gone .r-bad-key-icon { color: var(--neon-pink); }
+.r-join-title { font: 700 24px/1.3 var(--font-display); color: var(--text); }
+.r-join-desc { font-size: 15px; line-height: 1.5; color: var(--text-muted); }
 .r-bad-key-text { font: 600 20px/1.45 var(--font-display); overflow-wrap: anywhere; }
+.r-join-form { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.r-join-field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.r-join-label { font: 600 14px/1.3 var(--font-display); color: var(--text); }
+.r-pin-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 56px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  color: var(--gold);
+  font: 700 28px/1.2 var(--font-display);
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  transition: border-color .15s, box-shadow .15s;
+}
+.r-pin-input::placeholder { color: rgba(179,172,208,.45); }
+.r-pin-input:focus {
+  outline: none;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 0 3px rgba(51,225,255,.18), 0 0 24px rgba(51,225,255,.25);
+}
+.r-pin-input:disabled { opacity: .55; cursor: not-allowed; }
+.r-join-error {
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(225,29,116,.16);
+  border: 1px solid rgba(255,61,154,.55);
+  color: #ffd6ea;
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.r-join-submit { width: 100%; height: 46px; font-size: 16px; }
+@media (max-height: 500px) {
+  .r-status-full,
+  .r-status-bad-key { padding: 12px 16px; }
+  .r-bad-key-card { padding: 16px 20px; gap: 8px; }
+  .r-join-title { font-size: 20px; line-height: 1.25; }
+  .r-join-desc { font-size: 13px; line-height: 1.35; }
+  .r-bad-key-text { font-size: 17px; line-height: 1.35; }
+  .r-join-form { gap: 8px; margin-top: 0; }
+  .r-join-field { gap: 4px; }
+  .r-pin-input { height: 48px; }
+  .r-join-submit { height: 44px; }
+}
 #r-toasts {
   position: fixed;
   left: 50%;

@@ -26,6 +26,7 @@ async function fetchJson(url, { method, body: requestBody, signal, token } = {})
     }
     const err = new Error('network_error', { cause });
     err.code = 'network_error';
+    err.status = 0;
     throw err;
   }
 
@@ -81,6 +82,25 @@ export async function createRoom(name, { signal } = {}) {
   };
 }
 
+export async function joinRoom(pin, { signal } = {}) {
+  const body = await fetchJson('/api/join', {
+    method: 'POST',
+    body: { pin },
+    signal,
+  });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    const err = new Error('bad_response');
+    err.code = 'bad_response';
+    err.status = 200;
+    throw err;
+  }
+  return {
+    roomId: typeof body.roomId === 'string' ? body.roomId : '',
+    name: typeof body.name === 'string' ? body.name : '',
+    guestToken: typeof body.guestToken === 'string' ? body.guestToken : '',
+  };
+}
+
 export async function search(q, { signal, token } = {}) {
   const url = `/api/search?q=${encodeURIComponent(q)}`;
   const body = await fetchJson(url, { signal, token });
@@ -110,6 +130,9 @@ export async function getRoom({ signal, token } = {}) {
   }
   if (typeof body.qrSvg === 'string' || body.qrSvg === null) {
     room.qrSvg = body.qrSvg;
+  }
+  if (typeof body.pin === 'string' || body.pin === null) {
+    room.pin = body.pin;
   }
   return room;
 }

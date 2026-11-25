@@ -3,9 +3,9 @@ import {
   totalDurationSec,
   formatDuration,
 } from './store.js';
-import { search, fetchEmbeddable } from './api.js';
+import { search, fetchEmbeddable, joinRoom } from './api.js';
 import { createSync } from './sync.js';
-import { takeToken, forgetToken } from './session.js';
+import { takeToken, saveToken, forgetToken } from './session.js';
 import { createDragSort } from './drag-sort.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -13,13 +13,28 @@ const NAME_STORAGE_KEY = 'karaoke.remote.name';
 const SKIP_CONFIRM_MS = 3000;
 const TOAST_TTL_MS = 3500;
 const TERMINAL_MESSAGES = {
-  no_token: 'สแกน QR จากจอหลักเพื่อเข้าห้อง',
   bad_key: 'รหัสห้องเปลี่ยนแล้ว สแกน QR จากจอหลักอีกครั้ง',
   gone: 'ห้องนี้ถูกปิดแล้ว',
 };
+const JOIN_ERRORS = {
+  no_such_pin: 'รหัสไม่ถูกต้อง ดูรหัสบนจอหลักอีกครั้ง',
+  bad_pin: 'ใส่รหัสให้ครบ 6 หลัก',
+  too_many_attempts: 'มีการลองรหัสผิดบ่อยเกินไป รอสักครู่แล้วลองใหม่ หรือสแกน QR แทน',
+};
+const JOIN_GENERIC_ERROR = 'เข้าร่วมไม่สำเร็จ ลองอีกครั้ง';
 
 // DOM references
 const statusEl = document.getElementById('r-status');
+const statusBannerEl = document.getElementById('r-status-banner');
+const joinCardEl = document.getElementById('r-join-card');
+const joinLogoEl = document.getElementById('r-join-logo');
+const joinIconEl = document.getElementById('r-join-icon');
+const joinTitleEl = document.getElementById('r-join-title');
+const joinDescEl = document.getElementById('r-join-desc');
+const joinForm = document.getElementById('r-join-form');
+const pinInput = document.getElementById('r-pin-input');
+const joinErrorEl = document.getElementById('r-join-error');
+const btnJoin = document.getElementById('r-btn-join');
 const backdropEl = document.getElementById('r-backdrop');
 const nowBarEl = document.getElementById('r-now');
 const nowBadgeEl = document.getElementById('r-now-badge');
@@ -58,6 +73,7 @@ const toastsEl = document.getElementById('r-toasts');
 // App state
 let state = { ...createState(), playerState: 'idle' };
 let terminalState = null; // null | 'no_token' | 'bad_key' | 'gone'
+let joiningRoom = false;
 let activeToken = '';
 let sync = null;
 let roomName = '';
@@ -201,6 +217,62 @@ function renderRoomName() {
   }
 }
 
+function setJoinError(message) {
+  if (message) {
+    joinErrorEl.textContent = message;
+    joinErrorEl.hidden = false;
+    pinInput.setAttribute('aria-invalid', 'true');
+  } else {
+    joinErrorEl.textContent = '';
+    joinErrorEl.hidden = true;
+    pinInput.removeAttribute('aria-invalid');
+  }
+}
+
+async function submitJoin() {
+  if (joiningRoom || !terminalState) return;
+
+  const digits = pinInput.value.replace(/\D/g, '');
+  if (digits.length !== 6) {
+    setJoinError('ใส่รหัสให้ครบ 6 หลัก');
+    pinInput.focus();
+    return;
+  }
+
+  setJoinError('');
+  joiningRoom = true;
+  pinInput.disabled = true;
+  btnJoin.disabled = true;
+  btnJoin.textContent = 'กำลังเข้าร่วม…';
+
+  try {
+    const joined = await joinRoom(digits);
+    const saved = saveToken('g', joined?.guestToken);
+    if (!saved) {
+      setJoinError(JOIN_GENERIC_ERROR);
+      joiningRoom = false;
+      pinInput.disabled = false;
+      btnJoin.disabled = false;
+      btnJoin.textContent = 'เข้าร่วม';
+      pinInput.focus();
+      return;
+    }
+    window.location.reload();
+  } catch (err) {
+    const code = err?.code;
+    const message = JOIN_ERRORS[code] || JOIN_GENERIC_ERROR;
+    setJoinError(message);
+    joiningRoom = false;
+    pinInput.disabled = false;
+    btnJoin.disabled = false;
+    btnJoin.textContent = 'เข้าร่วม';
+    if (code === 'no_such_pin') {
+      pinInput.value = '';
+    }
+    pinInput.focus();
+  }
+}
+
 function createTerminalIcon(reason) {
   const icon = document.createElementNS(SVG_NS, 'svg');
   icon.setAttribute('class', 'r-bad-key-icon');
@@ -208,35 +280,6 @@ function createTerminalIcon(reason) {
   icon.setAttribute('height', '56');
   icon.setAttribute('viewBox', '0 0 24 24');
   icon.setAttribute('aria-hidden', 'true');
-
-  if (reason === 'no_token') {
-    const rects = [
-      ['3', '3', '7', '7', '1.2'],
-      ['14', '3', '7', '7', '1.2'],
-      ['3', '14', '7', '7', '1.2'],
-    ];
-    for (const [x, y, width, height, rx] of rects) {
-      const rect = document.createElementNS(SVG_NS, 'rect');
-      rect.setAttribute('x', x);
-      rect.setAttribute('y', y);
-      rect.setAttribute('width', width);
-      rect.setAttribute('height', height);
-      rect.setAttribute('rx', rx);
-      rect.setAttribute('fill', 'none');
-      rect.setAttribute('stroke', 'currentColor');
-      rect.setAttribute('stroke-width', '2');
-      icon.appendChild(rect);
-    }
-    const qrBits = document.createElementNS(SVG_NS, 'path');
-    qrBits.setAttribute('d', 'M14 14h3v3h-3zM19 14h2v2M14 19h2v2M19 19h2v2');
-    qrBits.setAttribute('fill', 'none');
-    qrBits.setAttribute('stroke', 'currentColor');
-    qrBits.setAttribute('stroke-width', '2');
-    qrBits.setAttribute('stroke-linecap', 'round');
-    qrBits.setAttribute('stroke-linejoin', 'round');
-    icon.appendChild(qrBits);
-    return icon;
-  }
 
   if (reason === 'gone') {
     const circle = document.createElementNS(SVG_NS, 'circle');
@@ -301,20 +344,37 @@ function enterTerminalState(reason) {
 
   const modifier = reason.replace('_', '-');
   statusEl.className = `r-status r-status-full r-status-${modifier}`;
-  statusEl.replaceChildren();
+  statusBannerEl.hidden = true;
+  statusBannerEl.textContent = '';
 
-  const card = document.createElement('div');
-  card.className = 'r-bad-key-card glass iris';
+  const isJoinFresh = reason === 'no_token';
+  joinLogoEl.hidden = !isJoinFresh;
+  if (isJoinFresh) {
+    joinIconEl.replaceChildren();
+    joinIconEl.hidden = true;
+    joinTitleEl.className = 'r-join-title';
+    joinTitleEl.textContent = 'เข้าร่วมห้อง';
+    joinDescEl.textContent = 'ใส่รหัส 6 หลักที่แสดงบนจอหลัก หรือสแกน QR';
+    joinDescEl.hidden = false;
+  } else {
+    joinIconEl.replaceChildren(createTerminalIcon(reason));
+    joinIconEl.hidden = false;
+    joinTitleEl.className = 'r-bad-key-text';
+    joinTitleEl.textContent = TERMINAL_MESSAGES[reason] || TERMINAL_MESSAGES.bad_key;
+    joinDescEl.textContent = '';
+    joinDescEl.hidden = true;
+  }
 
-  const icon = createTerminalIcon(reason);
+  joiningRoom = false;
+  pinInput.value = '';
+  pinInput.disabled = false;
+  btnJoin.disabled = false;
+  btnJoin.textContent = 'เข้าร่วม';
+  setJoinError('');
 
-  const text = document.createElement('p');
-  text.className = 'r-bad-key-text';
-  text.textContent = TERMINAL_MESSAGES[reason] || TERMINAL_MESSAGES.bad_key;
-
-  card.append(icon, text);
-  statusEl.appendChild(card);
+  joinCardEl.hidden = false;
   statusEl.hidden = false;
+  pinInput.focus();
 }
 
 function updateConnectionStatus(status) {
@@ -329,10 +389,14 @@ function updateConnectionStatus(status) {
   if (terminalState) return;
 
   if (status === 'offline') {
-    statusEl.className = 'r-status r-status-offline';
-    statusEl.textContent = 'กำลังเชื่อมต่อใหม่…';
+    statusEl.className = 'r-status';
+    joinCardEl.hidden = true;
+    statusBannerEl.textContent = 'กำลังเชื่อมต่อใหม่…';
+    statusBannerEl.hidden = false;
     statusEl.hidden = false;
   } else {
+    statusBannerEl.hidden = true;
+    statusBannerEl.textContent = '';
     statusEl.hidden = true;
   }
 }
@@ -914,6 +978,22 @@ async function runSearch(rawQuery) {
 }
 
 // Event wiring
+joinForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  void submitJoin();
+});
+
+pinInput.addEventListener('input', () => {
+  if (joiningRoom) return;
+  if (!joinErrorEl.hidden) {
+    setJoinError('');
+  }
+  const digits = pinInput.value.replace(/\D/g, '');
+  if (digits.length === 6) {
+    void submitJoin();
+  }
+});
+
 nameInput.value = loadSavedName();
 nameInput.addEventListener('input', () => {
   saveName(nameInput.value);

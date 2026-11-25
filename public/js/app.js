@@ -42,6 +42,7 @@ const CREATE_ROOM_ERRORS = {
   too_many_rooms: 'มีคนสร้างห้องเยอะเกินไปในชั่วโมงนี้ ลองใหม่อีกสักครู่',
 };
 const CREATE_ROOM_GENERIC_ERROR = 'สร้างห้องไม่สำเร็จ ลองอีกครั้ง';
+const DEMO_PIN = '123456';
 
 const params = new URLSearchParams(location.search);
 const isDemo = params.get('demo') === '1';
@@ -68,6 +69,9 @@ const stageQrFrame = document.getElementById('stage-qr-frame');
 const stageQrImg = document.getElementById('stage-qr-img');
 const stageQrCaption = document.getElementById('stage-qr-caption');
 const stageQrUrl = document.getElementById('stage-qr-url');
+const stagePinWrap = document.getElementById('stage-pin-wrap');
+const stagePinHint = document.getElementById('stage-pin-hint');
+const stagePinCode = document.getElementById('stage-pin-code');
 const stageUnavailable = document.getElementById('stage-unavailable');
 const btnRetryPlayer = document.getElementById('btn-retry-player');
 const roomGateEl = document.getElementById('room-gate');
@@ -334,6 +338,40 @@ function displayGuestUrl(guestUrl) {
   if (typeof guestUrl !== 'string') return '';
   const hashIndex = guestUrl.indexOf('#');
   return hashIndex === -1 ? guestUrl : guestUrl.slice(0, hashIndex);
+}
+
+function formatPin(pin) {
+  if (typeof pin !== 'string' || !/^\d{6}$/.test(pin)) return '';
+  return `${pin.slice(0, 3)} ${pin.slice(3)}`;
+}
+
+function getGuestHost(guestUrl) {
+  if (typeof guestUrl !== 'string' || !guestUrl) return '';
+  try {
+    return new URL(guestUrl).host;
+  } catch {
+    return '';
+  }
+}
+
+function createRemotePinBox(pin) {
+  const formatted = formatPin(pin);
+  if (!formatted) return null;
+
+  const box = document.createElement('div');
+  box.className = 'remote-pin-box';
+
+  const label = document.createElement('span');
+  label.className = 'remote-pin-label';
+  label.textContent = 'รหัสห้อง';
+
+  const code = document.createElement('p');
+  code.id = 'remote-pin';
+  code.className = 'remote-pin-code';
+  code.textContent = formatted;
+
+  box.append(label, code);
+  return box;
 }
 
 function renderRoomName() {
@@ -999,6 +1037,8 @@ function renderStage() {
     stageIdle.hidden = false;
     const guestUrl = typeof roomInfo?.guestUrl === 'string' ? roomInfo.guestUrl : '';
     const qrDataUrl = qrSvgToDataUrl(roomInfo?.qrSvg);
+    const formattedPin = formatPin(isDemo ? DEMO_PIN : roomInfo?.pin);
+
     if (guestUrl) {
       if (qrDataUrl) {
         if (stageQrImg.getAttribute('src') !== qrDataUrl) {
@@ -1006,22 +1046,39 @@ function renderStage() {
         }
         stageQrFrame.hidden = false;
         stageQrCaption.textContent = 'สแกนเพื่อสั่งเพลงจากมือถือ';
+        stageQrCaption.hidden = false;
         stageQrUrl.textContent = '';
         stageQrUrl.hidden = true;
       } else {
         stageQrImg.removeAttribute('src');
         stageQrFrame.hidden = true;
         stageQrCaption.textContent = 'เปิดลิงก์นี้บนมือถือ';
+        stageQrCaption.hidden = false;
         stageQrUrl.textContent = displayGuestUrl(guestUrl);
         stageQrUrl.hidden = false;
       }
-      stageIdleQr.hidden = false;
     } else {
       stageQrImg.removeAttribute('src');
+      stageQrFrame.hidden = true;
+      stageQrCaption.hidden = true;
       stageQrUrl.textContent = '';
       stageQrUrl.hidden = true;
-      stageIdleQr.hidden = true;
     }
+
+    if (formattedPin && (guestUrl || isDemo)) {
+      const host = isDemo ? window.location.host : getGuestHost(guestUrl);
+      stagePinHint.textContent = host
+        ? `หรือเข้า ${host}/remote แล้วใส่รหัส`
+        : 'หรือเข้า /remote แล้วใส่รหัส';
+      stagePinCode.textContent = formattedPin;
+      stagePinWrap.hidden = false;
+    } else {
+      stagePinHint.textContent = '';
+      stagePinCode.textContent = '';
+      stagePinWrap.hidden = true;
+    }
+
+    stageIdleQr.hidden = !guestUrl && !formattedPin;
     return;
   }
 
@@ -1701,6 +1758,10 @@ function renderRemotePanel() {
     text.className = 'panel-state-text';
     text.textContent = 'โหมดตัวอย่าง — เปิดจากลิงก์ห้องเพื่อดู QR และลิงก์แขก';
     box.appendChild(text);
+    const pinBox = createRemotePinBox(DEMO_PIN);
+    if (pinBox) {
+      box.appendChild(pinBox);
+    }
     panel.appendChild(box);
     return;
   }
@@ -1744,6 +1805,11 @@ function renderRemotePanel() {
   urlEl.id = 'remote-url';
   urlEl.textContent = displayGuestUrl(guestUrl);
   card.appendChild(urlEl);
+
+  const pinBox = createRemotePinBox(roomInfo.pin);
+  if (pinBox) {
+    card.appendChild(pinBox);
+  }
 
   const actions = document.createElement('div');
   actions.className = 'remote-actions';

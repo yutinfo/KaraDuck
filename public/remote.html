@@ -21,7 +21,33 @@
     <div class="noscript-banner" role="alert">ต้องเปิด JavaScript เพื่อใช้งาน</div>
   </noscript>
 
-  <div id="r-status" class="r-status" role="status" aria-live="polite" hidden></div>
+  <div id="r-status" class="r-status" hidden>
+    <p id="r-status-banner" class="r-status-offline" role="status" aria-live="polite" hidden></p>
+    <div id="r-join-card" class="r-bad-key-card glass iris" hidden>
+      <img id="r-join-logo" class="r-join-logo" src="/logo.svg" width="64" height="64" alt="KaraDuck" hidden>
+      <div id="r-join-icon" class="r-join-icon" aria-hidden="true" hidden></div>
+      <h1 id="r-join-title" class="r-join-title"></h1>
+      <p id="r-join-desc" class="r-join-desc" hidden></p>
+      <form id="r-join-form" class="r-join-form" novalidate>
+        <div class="r-join-field">
+          <label for="r-pin-input" class="r-join-label">รหัสห้อง 6 หลัก</label>
+          <input
+            id="r-pin-input"
+            class="r-pin-input"
+            type="text"
+            name="pin"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="7"
+            placeholder="000 000"
+            aria-describedby="r-join-error"
+          >
+        </div>
+        <p id="r-join-error" class="r-join-error" role="alert" hidden></p>
+        <button id="r-btn-join" type="submit" class="btn-neon r-join-submit">เข้าร่วม</button>
+      </form>
+    </div>
+  </div>
 
   <main id="r-main" class="r-main">
     <div id="r-room-bar" class="r-room-bar" hidden>
