@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, stat, readdir } from 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createLocalApp, createRequestHandler, findLanAddress } from '../server.mjs';
+import { SECURITY_HEADERS, ADMIN_SECURITY_HEADERS } from '../lib/security-headers.mjs';
 
 class Response extends EventEmitter {
   status = null;
@@ -46,6 +47,29 @@ const secure = headers => {
   assert.equal(headers['Referrer-Policy'], 'strict-origin-when-cross-origin');
 };
 
+test('/admin and /admin.html serve the same document with admin CSP through app and HTTP adapter', async t => {
+  const f = await setup(t);
+  await writeFile(path.join(f.publicDir, 'admin.html'), '<h1>Admin</h1>');
+  await mkdir(path.join(f.publicDir, 'js'));
+  await writeFile(path.join(f.publicDir, 'js/admin.js'), '// admin');
+  const handler = createRequestHandler(f.app);
+  for (const url of ['/admin', '/admin.html', '/admin?from=test', '/admin.html?from=test', '/', '/remote', '/js/admin.js']) {
+    const admin = url.split('?')[0] === '/admin' || url.split('?')[0] === '/admin.html';
+    const headers = admin ? ADMIN_SECURITY_HEADERS : SECURITY_HEADERS;
+    for (const method of ['GET', 'HEAD']) {
+      const result = await get(f, url, method);
+      assert.equal(result.status, 200);
+      for (const [key, value] of Object.entries(headers)) assert.equal(result.headers[key], value, url);
+      if (admin) assert.equal(result.body.toString(), method === 'HEAD' ? '' : '<h1>Admin</h1>');
+      const req = request(method, url), res = new Response();
+      await handler(req, res);
+      for (const [key, value] of Object.entries(headers)) assert.equal(res.headers[key], value, url);
+      assert.equal(res.body, result.body.toString());
+      req.destroy();
+    }
+  }
+});
+
 test('เริ่มครั้งแรกได้ลิงก์เจ้าของห้อง บ้าน เรียก room ได้ 200', async t => {
   const f = await setup(t);
   assert.equal(f.ownerLinks.length, 1);
@@ -55,7 +79,7 @@ test('เริ่มครั้งแรกได้ลิงก์เจ้�
   assert.equal(value(r).name, 'บ้าน');
   assert.equal(value(r).role, 'o');
   assert.match(value(r).guestUrl, /^http:\/\/192\.168\.1\.23:8792\/remote#g=/);
-  assert.deepEqual(value(await get(f, '/api/config')), { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792', createEnabled: true });
+  assert.deepEqual(value(await get(f, '/api/config')), { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792', createEnabled: true, firebase: null });
 });
 test('เริ่มครั้งที่สองได้ลิงก์เดิมและเก็บ secrets/rooms ด้วยสิทธิ์ 0600', async t => {
   const f = await setup(t);
@@ -170,7 +194,7 @@ test('HTTP adapter ไม่อ่าน POST ที่ไม่มีโทเ�
 test('HTTP adapter GET config เป็น local และ GET room ไม่มีโทเคนได้ 401', async t => {
   const f = await setup(t), handler = createRequestHandler(f.app);
   for (const [url, status, expected] of [
-    ['/api/config', 200, { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792', createEnabled: true }],
+    ['/api/config', 200, { mode: 'local', db: '/local-db', origin: 'http://192.168.1.23:8792', createEnabled: true, firebase: null }],
     ['/api/room', 401, { error: 'bad_token' }],
   ]) {
     const req = request('GET', url), res = new Response();

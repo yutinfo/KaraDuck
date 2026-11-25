@@ -8,7 +8,7 @@ import { createFileStore } from './lib/store-file.mjs';
 import { createHandlers } from './lib/handlers.mjs';
 import { newRoomDoc, encodeRoomDoc, decodeRoomDoc } from './lib/room-doc.mjs';
 import { makeRoomId, signToken } from './lib/tokens.mjs';
-import { SECURITY_HEADERS } from './lib/security-headers.mjs';
+import { SECURITY_HEADERS, securityHeadersFor } from './lib/security-headers.mjs';
 import { serveStatic } from './lib/static.mjs';
 
 const json = (status, body, headers = {}) => ({ status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers }, body: JSON.stringify(body) });
@@ -91,7 +91,7 @@ export function createLocalApp({ publicDir = fileURLToPath(new URL('./public/', 
       } else if (pathname.startsWith('/local-db/')) response = json(404, { error: 'not_found' });
       else if (!['GET', 'HEAD'].includes(request.method)) response = json(405, { error: 'method_not_allowed' }, { Allow: 'GET, HEAD' });
       else response = await serveStatic(publicDir, request.url.split(/[?#]/, 1)[0]) ?? json(404, { error: 'not_found' });
-      return { ...response, headers: { ...response.headers, ...SECURITY_HEADERS }, body: request.method === 'HEAD' ? '' : response.body };
+      return { ...response, headers: { ...response.headers, ...securityHeadersFor(pathname) }, body: request.method === 'HEAD' ? '' : response.body };
     },
     openStream(roomId, send) {
       if (!/^[A-HJ-NP-Z2-9]{16}$/.test(roomId) || streams >= 50) return null;
@@ -147,7 +147,7 @@ export function createRequestHandler(app, { startInterval = setInterval, stopInt
   return async (req, res) => {
     const respond = result => {
       if (result.status === 413) req.pause();
-      res.writeHead(result.status, { ...result.headers, ...SECURITY_HEADERS, ...(result.status === 413 ? { Connection: 'close' } : {}) });
+      res.writeHead(result.status, { ...result.headers, ...securityHeadersFor(pathnameOf(req.url)), ...(result.status === 413 ? { Connection: 'close' } : {}) });
       res.end(req.method === 'HEAD' ? '' : result.body);
     };
     try {

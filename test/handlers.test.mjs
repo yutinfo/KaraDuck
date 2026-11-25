@@ -19,6 +19,48 @@ function request(endpoint, { role = 'g', method = 'GET', body, ...extra } = {}) 
 }
 const adminReq = body => request('admin', { method: 'POST', body, headers: { authorization: 'Bearer admin', 'content-type': 'application/json' } });
 
+test('Google admin requires verified allowlisted email and Google sign-in; key path still works', async () => {
+  const valid = { email: 'OWNER@Example.Test', email_verified: true, firebase: { sign_in_provider: 'google.com' } };
+  for (const [claims, status, code] of [
+    [valid, 200], [{ ...valid, email: 'stranger@example.test' }, 403, 'not_admin'],
+    [{ ...valid, email_verified: false }, 403, 'not_admin'],
+    [{ ...valid, firebase: { sign_in_provider: 'password' } }, 403, 'not_admin'],
+    [{ ...valid, firebase: undefined }, 403, 'not_admin'], [{ ...valid, email: undefined }, 403, 'not_admin'],
+    [null, 401, 'bad_admin_key'],
+  ]) {
+    const { handlers } = await setup({ adminEmails: ['owner@example.test'], verifyIdToken: async token => {
+      assert.equal(token, 'firebase-token'); return claims;
+    } });
+    const req = { ...adminReq({ action: 'list' }), headers: { authorization: 'Bearer firebase-token', 'content-type': 'application/json' } };
+    if (status !== 200) Object.defineProperty(req, 'body', { get: () => assert.fail('unauthorized body read') });
+    const response = await handlers.admin(req);
+    assert.equal(response.status, status);
+    if (code) assert.deepEqual(value(response), { error: code });
+    assert.equal((await handlers.admin(adminReq({ action: 'list' }))).status, 200);
+  }
+});
+
+test('Google-only admins work without ADMIN_KEY; incomplete config disables admin', async () => {
+  const verifyIdToken = async () => ({ email: 'owner@example.test', email_verified: true, firebase: { sign_in_provider: 'google.com' } });
+  const f = await setup({ adminKey: '', adminEmails: ['owner@example.test'], verifyIdToken });
+  assert.equal((await f.handlers.admin(adminReq({ action: 'list' }))).status, 200);
+  for (const options of [{ adminEmails: [] }, { verifyIdToken: undefined }]) {
+    const disabled = await setup({ adminKey: '', adminEmails: ['owner@example.test'], verifyIdToken, ...options });
+    const response = await disabled.handlers.admin(adminReq({ action: 'list' }));
+    assert.equal(response.status, 503);
+    assert.deepEqual(value(response), { error: 'admin_disabled' });
+  }
+  const failed = await setup({ adminEmails: ['owner@example.test'], verifyIdToken: async () => { throw new Error('offline'); } });
+  const response = await failed.handlers.admin({ ...adminReq({}), headers: { authorization: 'Bearer invalid' } });
+  assert.equal(response.status, 401);
+});
+
+test('config exposes only the supplied public Firebase web configuration', async () => {
+  const firebase = { apiKey: 'public-key', authDomain: 'karaduck.firebaseapp.com', projectId: 'karaduck', appId: 'app' };
+  const { handlers } = await setup({ firebase });
+  assert.deepEqual(value(await handlers.config(request('config'))).firebase, firebase);
+});
+
 test('ไม่มีโทเคนทุก protected handler ได้ bad_token ก่อนอ่าน body หรือเรียก store/fetch', async () => {
   const { handlers } = await setup({ store: new Proxy({}, { get() { assert.fail('store touched'); } }) });
   for (const name of ['room', 'command', 'search', 'embeddable']) {
@@ -79,7 +121,7 @@ test('search ไม่มีโทเคนไม่เรียก fetchImpl', 
 test('config ไม่ต้องมีโทเคนและไม่มี CORS', async () => {
   const { handlers } = await setup();
   const r = await handlers.config({ method: 'GET', headers: {}, get body() { assert.fail('body'); } });
-  assert.deepEqual(value(r), { mode: 'cloud', db: 'https://example.firebasedatabase.app', origin: 'https://karaoke.test', createEnabled: true });
+  assert.deepEqual(value(r), { mode: 'cloud', db: 'https://example.firebasedatabase.app', origin: 'https://karaoke.test', createEnabled: true, firebase: null });
   assert.equal(Object.keys(r.headers).some(k => /access-control/i.test(k)), false);
 });
 test('command ตรวจ method, content type, byte limit และ JSON', async () => {
