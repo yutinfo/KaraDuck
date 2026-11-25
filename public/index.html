@@ -212,12 +212,39 @@
 
   <section id="room-gate" class="room-gate" role="alertdialog" aria-modal="true" aria-labelledby="room-gate-title" aria-describedby="room-gate-desc" hidden>
     <div class="glass iris room-gate-card">
-      <svg class="room-gate-icon" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true">
+      <img id="room-gate-logo" class="room-gate-logo" src="/logo.svg" width="72" height="72" alt="KaraDuck" hidden>
+      <svg id="room-gate-icon" class="room-gate-icon" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="10" fill="rgba(255, 61, 154, 0.1)" stroke="#ff3d9a" stroke-width="1.8" />
         <path d="M12 7v6M12 16.5v.5" fill="none" stroke="#ffd166" stroke-width="2.2" stroke-linecap="round" />
       </svg>
       <h1 id="room-gate-title" class="room-gate-title"></h1>
       <p id="room-gate-desc" class="room-gate-desc"></p>
+      <p id="create-room-notice" class="room-gate-notice" role="status" hidden></p>
+
+      <div id="room-gate-create" class="room-gate-create" hidden>
+        <p id="create-room-disabled" class="room-gate-disabled" role="status" hidden>ตอนนี้ปิดรับการสร้างห้องใหม่</p>
+        <form id="create-room-form" class="room-gate-form" novalidate>
+          <div class="room-gate-field">
+            <label for="create-room-name" class="room-gate-label">ชื่อห้อง</label>
+            <input
+              id="create-room-name"
+              class="room-gate-input"
+              type="text"
+              name="name"
+              maxlength="40"
+              placeholder="เช่น บ้านคุณยาย"
+              autocomplete="off"
+            >
+          </div>
+          <p id="create-room-error" class="room-gate-error" role="alert" hidden></p>
+          <button id="btn-create-room" type="submit" class="btn-neon room-gate-submit">สร้างห้อง</button>
+        </form>
+        <p id="create-room-hint" class="room-gate-hint">มีลิงก์ห้องอยู่แล้ว? เปิดลิงก์นั้นได้เลย</p>
+      </div>
+
+      <div id="room-gate-actions" class="room-gate-actions" hidden>
+        <button id="btn-gate-new-room" type="button" class="btn-neon room-gate-action">สร้างห้องใหม่</button>
+      </div>
     </div>
   </section>
 

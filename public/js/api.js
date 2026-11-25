@@ -6,13 +6,20 @@ function authHeaders(token) {
   return headers;
 }
 
-async function fetchJson(url, { signal, token } = {}) {
+async function fetchJson(url, { method, body: requestBody, signal, token } = {}) {
+  const headers = authHeaders(token);
+  const options = { headers, signal };
+  if (method) {
+    options.method = method;
+  }
+  if (requestBody !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(requestBody);
+  }
+
   let response;
   try {
-    response = await fetch(url, {
-      headers: authHeaders(token),
-      signal,
-    });
+    response = await fetch(url, options);
   } catch (cause) {
     if (cause?.name === 'AbortError') {
       throw cause;
@@ -41,6 +48,37 @@ async function fetchJson(url, { signal, token } = {}) {
   }
 
   return body;
+}
+
+export async function getConfig({ signal } = {}) {
+  const body = await fetchJson('/api/config', { signal });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    const err = new Error('bad_response');
+    err.code = 'bad_response';
+    err.status = 200;
+    throw err;
+  }
+  return body;
+}
+
+export async function createRoom(name, { signal } = {}) {
+  const body = await fetchJson('/api/rooms', {
+    method: 'POST',
+    body: { name },
+    signal,
+  });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    const err = new Error('bad_response');
+    err.code = 'bad_response';
+    err.status = 200;
+    throw err;
+  }
+  return {
+    roomId: typeof body.roomId === 'string' ? body.roomId : '',
+    name: typeof body.name === 'string' ? body.name : '',
+    ownerToken: typeof body.ownerToken === 'string' ? body.ownerToken : '',
+    ownerUrl: typeof body.ownerUrl === 'string' ? body.ownerUrl : '',
+  };
 }
 
 export async function search(q, { signal, token } = {}) {

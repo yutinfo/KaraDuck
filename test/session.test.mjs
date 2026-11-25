@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { takeToken, forgetToken } from '../public/js/session.js';
+import { takeToken, saveToken, forgetToken } from '../public/js/session.js';
 import * as api from '../public/js/api.js';
 
 const ROOM_A = 'ABCDEFGHJKLMNPQR';
@@ -182,10 +182,52 @@ test('forgetToken removes token from storage and memory fallback', () => {
   );
 });
 
-test('api exports search, fetchEmbeddable, getRoom and removes getRemoteInfo', () => {
+test('saveToken validates role/format, persists for takeToken, rejects wrong role, and falls back when storage throws', () => {
+  const storage = makeStorage();
+  const saved = saveToken('o', OWNER_A, { storage });
+  assert.deepEqual(saved, { token: OWNER_A, roomId: ROOM_A });
+  assert.equal(storage.getItem('karaoke.token.o'), OWNER_A);
+
+  const taken = takeToken('o', {
+    location: { pathname: '/', search: '', hash: '' },
+    history: makeHistory(),
+    storage,
+  });
+  assert.deepEqual(taken, { token: OWNER_A, roomId: ROOM_A });
+
+  assert.equal(saveToken('o', GUEST_A, { storage }), null);
+  assert.equal(storage.getItem('karaoke.token.o'), OWNER_A);
+
+  const emptyStorage = makeStorage();
+  assert.equal(saveToken('o', GUEST_A, { storage: emptyStorage }), null);
+  assert.equal(saveToken('g', OWNER_A, { storage: emptyStorage }), null);
+  assert.equal(saveToken('o', 'bad-token', { storage: emptyStorage }), null);
+  assert.equal(saveToken('x', OWNER_A, { storage: emptyStorage }), null);
+  assert.equal(emptyStorage.getItem('karaoke.token.o'), null);
+  assert.equal(emptyStorage.getItem('karaoke.token.g'), null);
+
+  const throwing = makeThrowingStorage();
+  try {
+    const savedInMemory = saveToken('o', OWNER_B, { storage: throwing });
+    assert.deepEqual(savedInMemory, { token: OWNER_B, roomId: ROOM_B });
+
+    const takenInMemory = takeToken('o', {
+      location: { pathname: '/', search: '', hash: '' },
+      history: makeHistory(),
+      storage: throwing,
+    });
+    assert.deepEqual(takenInMemory, { token: OWNER_B, roomId: ROOM_B });
+  } finally {
+    forgetToken('o', { storage: throwing });
+  }
+});
+
+test('api exports search, fetchEmbeddable, getRoom, getConfig, createRoom and removes getRemoteInfo', () => {
   assert.equal(typeof api.search, 'function');
   assert.equal(typeof api.fetchEmbeddable, 'function');
   assert.equal(typeof api.getRoom, 'function');
+  assert.equal(typeof api.getConfig, 'function');
+  assert.equal(typeof api.createRoom, 'function');
   assert.equal('getRemoteInfo' in api, false);
 });
 
@@ -265,6 +307,89 @@ test('api.getRoom throws error with code and status on non-200 response', async 
     await assert.rejects(
       () => api.getRoom({ token: GUEST_A }),
       (err) => err.code === 'stale_token' && err.status === 401,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('api.getConfig calls GET /api/config without Authorization and returns object', async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return {
+      status: 200,
+      async json() {
+        return { db: 'https://example.firebasedatabase.app', createEnabled: true };
+      },
+    };
+  };
+
+  try {
+    const config = await api.getConfig();
+    assert.deepEqual(config, {
+      db: 'https://example.firebasedatabase.app',
+      createEnabled: true,
+    });
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, '/api/config');
+    assert.equal(requests[0].options.headers.Authorization, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('api.createRoom posts { name } to /api/rooms without Authorization and returns room payload', async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return {
+      status: 200,
+      async json() {
+        return {
+          roomId: ROOM_A,
+          name: 'บ้านคุณยาย',
+          ownerToken: OWNER_A,
+          ownerUrl: `https://example.com/#o=${OWNER_A}`,
+        };
+      },
+    };
+  };
+
+  try {
+    const res = await api.createRoom('บ้านคุณยาย');
+    assert.deepEqual(res, {
+      roomId: ROOM_A,
+      name: 'บ้านคุณยาย',
+      ownerToken: OWNER_A,
+      ownerUrl: `https://example.com/#o=${OWNER_A}`,
+    });
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, '/api/rooms');
+    assert.equal(requests[0].options.method, 'POST');
+    assert.equal(requests[0].options.headers['Content-Type'], 'application/json');
+    assert.equal(requests[0].options.headers.Authorization, undefined);
+    assert.equal(requests[0].options.body, JSON.stringify({ name: 'บ้านคุณยาย' }));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('api.createRoom throws error with code and status on non-200 response', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    status: 429,
+    async json() {
+      return { error: 'too_many_rooms' };
+    },
+  });
+
+  try {
+    await assert.rejects(
+      () => api.createRoom('บ้านคุณยาย'),
+      (err) => err.code === 'too_many_rooms' && err.status === 429,
     );
   } finally {
     globalThis.fetch = originalFetch;

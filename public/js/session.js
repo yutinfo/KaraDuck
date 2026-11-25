@@ -34,7 +34,7 @@ function urlWithoutHash(location) {
   return '';
 }
 
-function saveToken(key, token, storage) {
+function persistToken(key, token, storage) {
   try {
     if (!storage) throw new Error('storage_unavailable');
     storage.setItem(key, token);
@@ -53,6 +53,16 @@ function loadToken(key, storage) {
   }
 }
 
+export function saveToken(role, token, { storage } = {}) {
+  if (role !== 'o' && role !== 'g') return null;
+  const parsed = parseToken(token, role);
+  if (!parsed) return null;
+  const key = storageKey(role);
+  const resolvedStorage = resolveStorage(storage);
+  persistToken(key, parsed.token, resolvedStorage);
+  return parsed;
+}
+
 export function takeToken(
   role,
   { location = globalThis.location, history = globalThis.history, storage } = {},
@@ -67,7 +77,7 @@ export function takeToken(
   if (hashParams.has(role)) {
     const parsed = parseToken(hashParams.get(role), role);
     if (!parsed) return null;
-    saveToken(key, parsed.token, resolvedStorage);
+    persistToken(key, parsed.token, resolvedStorage);
     try {
       history?.replaceState?.(null, '', urlWithoutHash(location));
     } catch {

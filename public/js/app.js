@@ -4,10 +4,10 @@ import {
   formatDuration,
 } from './store.js';
 import { applyCommand } from './commands.js';
-import { search, getRoom, fetchEmbeddable } from './api.js';
+import { search, getRoom, fetchEmbeddable, getConfig, createRoom } from './api.js';
 import { createPlayer } from './player.js';
 import { createSync } from './sync.js';
-import { takeToken, forgetToken } from './session.js';
+import { takeToken, saveToken, forgetToken } from './session.js';
 import { createDragSort } from './drag-sort.js';
 import { DEMO_QUERY, DEMO_SONGS } from './demo-data.js';
 
@@ -23,8 +23,8 @@ const AUTOPLAY_HINT_TEXT =
   'กด ▶ หนึ่งครั้งเพื่อเปิดเสียง หลังจากนั้นเพลงจะเล่นต่อเองจากมือถือได้';
 const GATE_MESSAGES = {
   no_token: {
-    title: 'ต้องเปิดจากลิงก์ห้อง',
-    desc: 'หน้านี้ต้องเปิดจากลิงก์เจ้าของห้อง กรุณาขอลิงก์ห้องจากผู้ดูแล',
+    title: 'สร้างห้องคาราโอเกะ',
+    desc: 'ตั้งชื่อห้อง แล้วให้เพื่อนสแกน QR เพื่อสั่งเพลงจากมือถือ',
   },
   bad_key: {
     title: 'ลิงก์ห้องนี้ใช้ไม่ได้แล้ว',
@@ -35,6 +35,13 @@ const GATE_MESSAGES = {
     desc: 'ผู้ดูแลได้ปิดห้องนี้แล้ว หากต้องการใช้งานต่อ กรุณาขอลิงก์ห้องใหม่จากผู้ดูแล',
   },
 };
+const CREATE_ROOM_ERRORS = {
+  bad_name: 'ชื่อห้องใช้ไม่ได้ (ยาวได้ไม่เกิน 40 ตัวอักษร)',
+  create_disabled: 'ตอนนี้ปิดรับการสร้างห้องใหม่',
+  rooms_full: 'ห้องเต็มแล้ว ลองใหม่ภายหลัง',
+  too_many_rooms: 'มีคนสร้างห้องเยอะเกินไปในชั่วโมงนี้ ลองใหม่อีกสักครู่',
+};
+const CREATE_ROOM_GENERIC_ERROR = 'สร้างห้องไม่สำเร็จ ลองอีกครั้ง';
 
 const params = new URLSearchParams(location.search);
 const isDemo = params.get('demo') === '1';
@@ -64,8 +71,19 @@ const stageQrUrl = document.getElementById('stage-qr-url');
 const stageUnavailable = document.getElementById('stage-unavailable');
 const btnRetryPlayer = document.getElementById('btn-retry-player');
 const roomGateEl = document.getElementById('room-gate');
+const roomGateLogoEl = document.getElementById('room-gate-logo');
+const roomGateIconEl = document.getElementById('room-gate-icon');
 const roomGateTitleEl = document.getElementById('room-gate-title');
 const roomGateDescEl = document.getElementById('room-gate-desc');
+const createRoomNoticeEl = document.getElementById('create-room-notice');
+const roomGateCreateEl = document.getElementById('room-gate-create');
+const createRoomDisabledEl = document.getElementById('create-room-disabled');
+const createRoomForm = document.getElementById('create-room-form');
+const createRoomNameInput = document.getElementById('create-room-name');
+const createRoomErrorEl = document.getElementById('create-room-error');
+const btnCreateRoom = document.getElementById('btn-create-room');
+const roomGateActionsEl = document.getElementById('room-gate-actions');
+const btnGateNewRoom = document.getElementById('btn-gate-new-room');
 
 const nowbarEl = document.getElementById('nowbar');
 const nowbarTitle = document.getElementById('nowbar-title');
@@ -131,7 +149,12 @@ let roomName = '';
 let roomInfoStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'demo'
 let roomInfo = null;
 let rotatingGuest = false;
+let closingRoom = false;
+let selfClosedRoom = false;
+let sawGoneWhileClosing = false;
+let creatingRoom = false;
 let activeRoomRefreshController = null;
+let activeConfigController = null;
 
 let advanceRetryTimer = null;
 let advanceRetryQid = null;
@@ -150,11 +173,13 @@ const confirmTimers = {
   queue: null,
   history: null,
   rotateGuest: null,
+  closeRoom: null,
 };
 const confirmArmed = {
   queue: false,
   history: false,
   rotateGuest: false,
+  closeRoom: false,
 };
 
 // Icon helper (safe DOM SVG construction, no innerHTML)
@@ -383,7 +408,93 @@ function schedulePlayerReport(nextPlayerState) {
   }, REPORT_DEBOUNCE_MS);
 }
 
-function enterBlockedGate(reason) {
+function setCreateRoomError(message) {
+  if (message) {
+    createRoomErrorEl.textContent = message;
+    createRoomErrorEl.hidden = false;
+  } else {
+    createRoomErrorEl.textContent = '';
+    createRoomErrorEl.hidden = true;
+  }
+}
+
+async function loadCreateRoomConfig() {
+  if (activeConfigController) {
+    activeConfigController.abort();
+  }
+  const controller = new AbortController();
+  activeConfigController = controller;
+
+  try {
+    const config = await getConfig({ signal: controller.signal });
+    if (activeConfigController === controller) {
+      activeConfigController = null;
+    }
+    if (controller.signal.aborted || blockedReason !== 'no_token') return;
+    if (config?.createEnabled === false) {
+      createRoomForm.hidden = true;
+      setCreateRoomError('');
+      createRoomDisabledEl.textContent = 'ตอนนี้ปิดรับการสร้างห้องใหม่';
+      createRoomDisabledEl.hidden = false;
+    }
+  } catch {
+    if (activeConfigController === controller) {
+      activeConfigController = null;
+    }
+    // Keep the create-room form visible when /api/config is unreachable.
+  }
+}
+
+async function handleCreateRoomSubmit(event) {
+  event.preventDefault();
+  if (creatingRoom || blockedReason !== 'no_token' || createRoomForm.hidden) return;
+
+  const trimmedName = createRoomNameInput.value.trim();
+  if (!trimmedName) {
+    setCreateRoomError('ใส่ชื่อห้องก่อน');
+    createRoomNameInput.focus();
+    return;
+  }
+
+  setCreateRoomError('');
+  createRoomNoticeEl.textContent = '';
+  createRoomNoticeEl.hidden = true;
+  creatingRoom = true;
+  createRoomNameInput.disabled = true;
+  btnCreateRoom.disabled = true;
+  btnCreateRoom.textContent = 'กำลังสร้าง…';
+
+  try {
+    const created = await createRoom(trimmedName);
+    if (blockedReason !== 'no_token') return;
+    const saved = saveToken('o', created?.ownerToken);
+    if (!saved) {
+      setCreateRoomError(CREATE_ROOM_GENERIC_ERROR);
+      creatingRoom = false;
+      createRoomNameInput.disabled = false;
+      btnCreateRoom.disabled = false;
+      btnCreateRoom.textContent = 'สร้างห้อง';
+      return;
+    }
+    window.location.reload();
+  } catch (err) {
+    if (blockedReason !== 'no_token') return;
+    const message = CREATE_ROOM_ERRORS[err?.code] || CREATE_ROOM_GENERIC_ERROR;
+    setCreateRoomError(message);
+    creatingRoom = false;
+    createRoomNameInput.disabled = false;
+    btnCreateRoom.disabled = false;
+    btnCreateRoom.textContent = 'สร้างห้อง';
+    if (err?.code === 'bad_name') {
+      createRoomNameInput.focus();
+    }
+  }
+}
+
+function enterBlockedGate(reason, { notice = '' } = {}) {
+  if (reason === 'gone' && (selfClosedRoom || closingRoom || blockedReason === 'no_token')) {
+    return;
+  }
   if (blockedReason === reason) return;
   blockedReason = reason;
 
@@ -398,6 +509,7 @@ function enterBlockedGate(reason) {
   resetConfirm('queue');
   resetConfirm('history');
   resetConfirm('rotateGuest');
+  resetConfirm('closeRoom');
 
   if (activeSearchController) {
     activeSearchController.abort();
@@ -410,6 +522,10 @@ function enterBlockedGate(reason) {
   if (activeRoomRefreshController) {
     activeRoomRefreshController.abort();
     activeRoomRefreshController = null;
+  }
+  if (activeConfigController) {
+    activeConfigController.abort();
+    activeConfigController = null;
   }
 
   if (sync) {
@@ -430,11 +546,48 @@ function enterBlockedGate(reason) {
   }
 
   const msg = GATE_MESSAGES[reason] || GATE_MESSAGES.bad_key;
+  const isCreateMode = reason === 'no_token';
+  roomGateEl.setAttribute('role', isCreateMode ? 'dialog' : 'alertdialog');
+  roomGateLogoEl.hidden = !isCreateMode;
+  roomGateIconEl.toggleAttribute('hidden', isCreateMode);
   roomGateTitleEl.textContent = msg.title;
   roomGateDescEl.textContent = msg.desc;
+
+  if (isCreateMode) {
+    roomGateCreateEl.hidden = false;
+    roomGateActionsEl.hidden = true;
+    createRoomForm.hidden = false;
+    createRoomDisabledEl.hidden = true;
+    setCreateRoomError('');
+    creatingRoom = false;
+    createRoomNameInput.disabled = false;
+    btnCreateRoom.disabled = false;
+    btnCreateRoom.textContent = 'สร้างห้อง';
+    if (notice) {
+      createRoomNoticeEl.textContent = notice;
+      createRoomNoticeEl.hidden = false;
+    } else {
+      createRoomNoticeEl.textContent = '';
+      createRoomNoticeEl.hidden = true;
+    }
+  } else {
+    roomGateCreateEl.hidden = true;
+    roomGateActionsEl.hidden = false;
+    createRoomNoticeEl.textContent = '';
+    createRoomNoticeEl.hidden = true;
+    setCreateRoomError('');
+  }
+
   appEl.inert = true;
   appEl.setAttribute('aria-hidden', 'true');
   roomGateEl.hidden = false;
+
+  if (isCreateMode) {
+    createRoomNameInput.focus();
+    void loadCreateRoomConfig();
+  } else {
+    btnGateNewRoom.focus();
+  }
 }
 
 function handleRoomInfo(info) {
@@ -717,6 +870,42 @@ async function rotateGuestCode() {
       renderRemotePanel();
     }
   }
+}
+
+async function closeCurrentRoom() {
+  if (isDemo || blockedReason || closingRoom) return;
+  closingRoom = true;
+  sawGoneWhileClosing = false;
+  renderRemotePanel();
+
+  const result = await dispatch({ type: 'closeRoom' }, { silent: true, returnError: true });
+  closingRoom = false;
+
+  if (result.ok) {
+    selfClosedRoom = true;
+    player?.stop();
+    sync?.stop();
+    forgetToken('o');
+    activeToken = '';
+    roomInfo = null;
+    roomName = '';
+    renderRoomName();
+    enterBlockedGate('no_token', { notice: 'ปิดห้องแล้ว' });
+    return;
+  }
+
+  if (blockedReason) return;
+
+  if (result.error?.status === 404 || sawGoneWhileClosing) {
+    if (result.error?.status !== 404) {
+      showToast('ปิดห้องไม่สำเร็จ ลองอีกครั้ง', { warn: true });
+    }
+    enterBlockedGate('gone');
+    return;
+  }
+
+  renderRemotePanel();
+  showToast('ปิดห้องไม่สำเร็จ ลองอีกครั้ง', { warn: true });
 }
 
 function isInQueueOrCurrent(songId) {
@@ -1127,7 +1316,7 @@ function renderConfirmTarget(key) {
     renderQueuePanel();
   } else if (key === 'history') {
     renderHistoryPanel();
-  } else if (key === 'rotateGuest') {
+  } else if (key === 'rotateGuest' || key === 'closeRoom') {
     renderRemotePanel();
   }
 }
@@ -1586,7 +1775,7 @@ function renderRemotePanel() {
   rotateBtn.className = confirmArmed.rotateGuest
     ? 'btn-glass remote-action-btn btn-danger-confirm'
     : 'btn-glass remote-action-btn';
-  rotateBtn.disabled = rotatingGuest;
+  rotateBtn.disabled = rotatingGuest || closingRoom;
   rotateBtn.textContent = rotatingGuest
     ? 'กำลังเปลี่ยนรหัส…'
     : confirmArmed.rotateGuest
@@ -1597,7 +1786,7 @@ function renderRemotePanel() {
     confirmArmed.rotateGuest ? 'ยืนยันเปลี่ยนรหัสแขก' : 'เปลี่ยนรหัสแขก'
   );
   rotateBtn.addEventListener('click', () => {
-    if (rotatingGuest) return;
+    if (rotatingGuest || closingRoom) return;
     handleTwoStepClear('rotateGuest', () => {
       void rotateGuestCode();
     });
@@ -1607,7 +1796,34 @@ function renderRemotePanel() {
   rotateNote.className = 'remote-rotate-note';
   rotateNote.textContent = 'เมื่อเปลี่ยนรหัส มือถือทุกเครื่องจะต้องสแกน QR ใหม่';
 
-  actions.append(copyBtn, rotateBtn, rotateNote);
+  const closeBtn = document.createElement('button');
+  closeBtn.id = 'btn-close-room';
+  closeBtn.type = 'button';
+  closeBtn.className = confirmArmed.closeRoom
+    ? 'btn-glass remote-action-btn btn-close-room btn-danger-confirm'
+    : 'btn-glass remote-action-btn btn-close-room';
+  closeBtn.disabled = closingRoom || rotatingGuest;
+  closeBtn.textContent = closingRoom
+    ? 'กำลังปิดห้อง…'
+    : confirmArmed.closeRoom
+      ? 'กดอีกครั้งเพื่อปิดห้อง'
+      : 'ปิดห้อง';
+  closeBtn.setAttribute(
+    'aria-label',
+    confirmArmed.closeRoom ? 'ยืนยันปิดห้อง' : 'ปิดห้อง'
+  );
+  closeBtn.addEventListener('click', () => {
+    if (closingRoom || rotatingGuest) return;
+    handleTwoStepClear('closeRoom', () => {
+      void closeCurrentRoom();
+    });
+  });
+
+  const closeNote = document.createElement('p');
+  closeNote.className = 'remote-rotate-note';
+  closeNote.textContent = 'คิวและประวัติของห้องนี้จะหายทั้งหมด';
+
+  actions.append(copyBtn, rotateBtn, rotateNote, closeBtn, closeNote);
   card.appendChild(actions);
 
   const steps = document.createElement('ol');
@@ -1743,6 +1959,18 @@ async function runSearch(rawQuery) {
 }
 
 // Event wiring
+if (createRoomForm) {
+  createRoomForm.addEventListener('submit', (event) => {
+    void handleCreateRoomSubmit(event);
+  });
+}
+
+if (btnGateNewRoom) {
+  btnGateNewRoom.addEventListener('click', () => {
+    enterBlockedGate('no_token');
+  });
+}
+
 if (btnOpenRemote) {
   btnOpenRemote.addEventListener('click', () => {
     setActiveTab('remote');
@@ -1926,6 +2154,11 @@ function init() {
         return;
       }
       if (status === 'gone') {
+        if (selfClosedRoom) return;
+        if (closingRoom) {
+          sawGoneWhileClosing = true;
+          return;
+        }
         enterBlockedGate('gone');
         return;
       }

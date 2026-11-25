@@ -983,28 +983,42 @@ svg {
   color: var(--text-muted);
 }
 
+.btn-close-room {
+  margin-top: 4px;
+}
+
 /* Full-screen Room Access Gate */
 .room-gate {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: rgba(6, 5, 12, 0.92);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
 .room-gate-card {
-  width: min(100%, 420px);
-  padding: 32px 24px;
+  margin: auto;
+  width: min(100%, 440px);
+  min-width: 0;
+  padding: 32px 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   text-align: center;
+}
+
+.room-gate-logo {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 auto;
+  display: block;
+  filter: drop-shadow(0 0 18px rgba(255, 61, 154, 0.4));
 }
 
 .room-gate-icon {
@@ -1026,6 +1040,169 @@ svg {
   font-size: 15px;
   line-height: 1.55;
   color: var(--text-muted);
+}
+
+.room-gate-notice {
+  margin: 0;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(51, 225, 255, 0.12);
+  border: 1px solid rgba(51, 225, 255, 0.4);
+  color: var(--neon-cyan);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.room-gate-create {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.room-gate-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.room-gate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.room-gate-label {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.room-gate-input {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 16px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.room-gate-input::placeholder {
+  color: var(--text-muted);
+}
+
+.room-gate-input:focus-visible {
+  outline: none;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 0 3px rgba(51, 225, 255, 0.18), 0 0 24px rgba(51, 225, 255, 0.25);
+}
+
+.room-gate-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.room-gate-error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(225, 29, 116, 0.16);
+  border: 1px solid rgba(255, 61, 154, 0.55);
+  color: #ffd6ea;
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.room-gate-disabled {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--well);
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  color: var(--gold);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.room-gate-submit,
+.room-gate-action {
+  width: 100%;
+  height: 46px;
+  font-size: 16px;
+}
+
+.room-gate-actions {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.room-gate-hint {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .room-gate {
+    padding: 16px;
+  }
+
+  .room-gate-card {
+    padding: 24px 20px;
+  }
+}
+
+@media (max-height: 500px) {
+  .room-gate {
+    padding: 12px 16px;
+  }
+
+  .room-gate-card {
+    padding: 18px 20px;
+    gap: 8px;
+  }
+
+  .room-gate-title {
+    font-size: 20px;
+  }
+
+  .room-gate-desc {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .room-gate-create {
+    gap: 8px;
+    margin-top: 0;
+  }
+
+  .room-gate-form {
+    gap: 8px;
+  }
+
+  .room-gate-input {
+    height: 42px;
+  }
+
+  .room-gate-submit,
+  .room-gate-action {
+    height: 40px;
+  }
 }
 
 /* Empty, Error, Skeleton States */
