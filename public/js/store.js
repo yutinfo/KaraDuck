@@ -1,4 +1,5 @@
 export const STORAGE_KEY = 'karaoke.state.v1';
+export const MAX_QUEUE = 200;
 
 const VIDEO_ID_RE = /^[\w-]{11}$/;
 const MAX_HISTORY = 30;
@@ -78,6 +79,9 @@ export function createState() {
 }
 
 export function enqueue(state, song, makeQid = defaultMakeQid) {
+  if (state.queue.length >= MAX_QUEUE) {
+    throw Object.assign(new Error('queue_full'), { code: 'queue_full' });
+  }
   const item = toQueueItem(song, makeQid);
   if (!state.current) {
     return {
@@ -94,6 +98,9 @@ export function enqueue(state, song, makeQid = defaultMakeQid) {
 }
 
 export function enqueueNext(state, song, makeQid = defaultMakeQid) {
+  if (state.queue.length >= MAX_QUEUE) {
+    throw Object.assign(new Error('queue_full'), { code: 'queue_full' });
+  }
   const item = toQueueItem(song, makeQid);
   if (!state.current) {
     return {
@@ -189,6 +196,20 @@ export function move(state, qid, delta) {
     queue,
     history: [...state.history],
   };
+}
+
+export function moveTo(state, qid, beforeQid) {
+  const validQid = value => typeof value === 'string' && value.length >= 1 && value.length <= 64;
+  if (!validQid(qid) || (beforeQid !== null && !validQid(beforeQid))) {
+    throw Object.assign(new Error('bad_command'), { code: 'bad_command' });
+  }
+  const index = state.queue.findIndex(item => item.qid === qid);
+  const before = beforeQid === null ? state.queue.length : state.queue.findIndex(item => item.qid === beforeQid);
+  if (index === -1 || before === -1 || index === before || index + 1 === before) return state;
+  const queue = [...state.queue];
+  const [item] = queue.splice(index, 1);
+  queue.splice(before > index ? before - 1 : before, 0, item);
+  return { current: state.current, queue, history: [...state.history] };
 }
 
 export function moveToTop(state, qid) {

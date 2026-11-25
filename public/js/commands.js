@@ -34,6 +34,9 @@ export function applyCommand(state, cmd, { makeQid } = {}) {
     case 'moveToTop':
       if (!validQid(cmd.qid)) throw badCommand();
       return store[cmd.type](state, cmd.qid);
+    case 'moveTo':
+      if (!validQid(cmd.qid) || (cmd.beforeQid !== null && !validQid(cmd.beforeQid))) throw badCommand();
+      return store.moveTo(state, cmd.qid, cmd.beforeQid);
     case 'move':
       if (!validQid(cmd.qid) || !Number.isInteger(cmd.delta) || cmd.delta === 0
         || cmd.delta < -50 || cmd.delta > 50) throw badCommand();

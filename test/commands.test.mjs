@@ -19,6 +19,42 @@ function setup() {
   return { state: freeze(state), options };
 }
 
+test('moveTo commands reorder before a qid or at the end and preserve no-op identity', () => {
+  const { state } = setup();
+  for (const [qid, beforeQid, expected] of [
+    ['q4', 'q3', ['q2', 'q4', 'q3']], ['q2', null, ['q3', 'q4', 'q2']],
+  ]) {
+    const next = applyCommand(state, freeze({ type: 'moveTo', qid, beforeQid }));
+    assert.deepEqual(next.queue.map(item => item.qid), expected);
+    assert.equal(next.current, state.current);
+  }
+  for (const [qid, beforeQid] of [['q2', 'q3'], ['q2', 'absent'], ['absent', 'q3'], ['q3', 'q3'], ['q4', null]]) {
+    assert.equal(applyCommand(state, { type: 'moveTo', qid, beforeQid }), state);
+  }
+  // Both limits are inclusive.
+  const long = 'x'.repeat(64);
+  assert.equal(applyCommand(state, { type: 'moveTo', qid: long, beforeQid: 'x' }), state);
+});
+
+test('moveTo commands reject malformed qid and beforeQid', () => {
+  const { state } = setup();
+  for (const invalid of [undefined, null, '', 5, {}, [], 'x'.repeat(65)]) {
+    assert.throws(() => applyCommand(state, { type: 'moveTo', qid: invalid, beforeQid: null }), { code: 'bad_command' });
+    if (invalid !== null) assert.throws(() => applyCommand(state, { type: 'moveTo', qid: 'q2', beforeQid: invalid }), { code: 'bad_command' });
+  }
+});
+
+test('queue cap applies to enqueue commands but allows playNow at 200 songs', () => {
+  const { state, options } = setup();
+  const full = freeze({ ...state, queue: Array.from({ length: 200 }, (_, i) => ({ ...state.queue[0], qid: `full${i}` })) });
+  for (const type of ['enqueue', 'enqueueNext']) {
+    assert.throws(() => applyCommand(full, { type, song: song(5) }, options), { code: 'queue_full' });
+  }
+  const next = applyCommand(full, { type: 'playNow', song: song(5) }, options);
+  assert.equal(next.current.id, song(5).id);
+  assert.deepEqual(next.queue, full.queue);
+});
+
 test('all song commands create fresh safe songs and queue ids without mutating frozen inputs', () => {
   for (const type of ['enqueue', 'enqueueNext', 'playNow']) {
     const { state, options } = setup();

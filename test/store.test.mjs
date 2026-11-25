@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import * as store from '../public/js/store.js';
 
 import {
   createState,
@@ -47,6 +48,61 @@ function makeCounterQid(prefix = 'q') {
 }
 
 describe('store.js', () => {
+  const orderedState = () => deepFreeze({
+    current: { ...makeSong(1), qid: 'current' },
+    queue: ['a', 'b', 'c', 'd'].map(qid => ({ ...makeSong(2), qid })),
+    history: [makeSong(3)],
+  });
+
+  for (const [qid, beforeQid, expected] of [
+    ['d', 'b', ['a', 'd', 'b', 'c']],
+    ['a', null, ['b', 'c', 'd', 'a']],
+    ['b', 'd', ['a', 'c', 'b', 'd']],
+  ]) it(`moveTo(${qid}, ${beforeQid}) reorders frozen queue`, () => {
+    const state = orderedState();
+    const next = store.moveTo(state, qid, beforeQid);
+    assert.deepEqual(next.queue.map(item => item.qid), expected);
+    assert.equal(next.current, state.current);
+    assert.deepEqual(next.history, state.history);
+    assert.deepEqual(state.queue.map(item => item.qid), ['a', 'b', 'c', 'd']);
+  });
+
+  it('moveTo keeps state identity for missing ids, self moves and unchanged order', () => {
+    const state = orderedState();
+    for (const [qid, beforeQid] of [
+      ['a', 'b'], ['a', 'ไม่มี'], ['ไม่มี', 'b'], ['b', 'b'], ['d', null],
+    ]) assert.equal(store.moveTo(state, qid, beforeQid), state);
+    const empty = deepFreeze(createState());
+    assert.equal(store.moveTo(empty, 'a', null), empty);
+  });
+
+  it('moveTo rejects malformed qids with bad_command', () => {
+    const state = orderedState();
+    for (const invalid of [undefined, null, '', 42, {}, 'x'.repeat(65)]) {
+      assert.throws(() => store.moveTo(state, invalid, null), { code: 'bad_command' });
+      if (invalid !== null) assert.throws(() => store.moveTo(state, 'a', invalid), { code: 'bad_command' });
+    }
+  });
+
+  it('enqueue and enqueueNext enforce MAX_QUEUE before allocating a qid', () => {
+    assert.equal(store.MAX_QUEUE, 200);
+    const state = orderedState();
+    for (const add of [enqueue, enqueueNext]) {
+      const almostFull = deepFreeze({ ...state, queue: Array.from({ length: 199 }, (_, i) => ({ ...makeSong(2), qid: `q${i}` })) });
+      const full = deepFreeze(add(almostFull, makeSong(4), () => 'last'));
+      assert.equal(full.queue.length, 200);
+      for (const size of [200, 201]) {
+        for (const current of [state.current, null]) {
+          const capped = deepFreeze({ ...full, current, queue: Array.from({ length: size }, () => full.queue[0]) });
+          assert.throws(() => add(capped, makeSong(5), () => assert.fail('must not allocate qid')), { code: 'queue_full' });
+        }
+      }
+      const next = playNow(full, makeSong(5), () => 'now');
+      assert.equal(next.current.qid, 'now');
+      assert.deepEqual(next.queue, full.queue);
+    }
+  });
+
   it('preserves trimmed by in current, queue, history and serialization', () => {
     const qid = makeCounterQid();
     let state = enqueue(createState(), { ...makeSong(1), by: '  แนน  ' }, qid);
