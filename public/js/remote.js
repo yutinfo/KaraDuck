@@ -1,5 +1,4 @@
 import {
-  createState,
   totalDurationSec,
   formatDuration,
 } from './store.js';
@@ -23,7 +22,6 @@ const JOIN_ERRORS = {
 };
 const JOIN_GENERIC_ERROR = 'เข้าร่วมไม่สำเร็จ ลองอีกครั้ง';
 
-// DOM references
 const statusEl = document.getElementById('r-status');
 const statusBannerEl = document.getElementById('r-status-banner');
 const joinCardEl = document.getElementById('r-join-card');
@@ -37,7 +35,6 @@ const joinErrorEl = document.getElementById('r-join-error');
 const btnJoin = document.getElementById('r-btn-join');
 const backdropEl = document.getElementById('r-backdrop');
 const nowBarEl = document.getElementById('r-now');
-const nowBadgeEl = document.getElementById('r-now-badge');
 const nowTitleEl = document.getElementById('r-now-title');
 const nowSubEl = document.getElementById('r-now-sub');
 const btnRestart = document.getElementById('r-btn-restart');
@@ -70,8 +67,7 @@ const panels = {
 const queueCountEl = document.getElementById('r-queue-count');
 const toastsEl = document.getElementById('r-toasts');
 
-// App state
-let state = { ...createState(), playerState: 'idle' };
+let state = { current: null, queue: [], playerState: 'idle' };
 let terminalState = null; // null | 'no_token' | 'bad_key' | 'gone'
 let joiningRoom = false;
 let activeToken = '';
@@ -93,7 +89,6 @@ let queueRenderPending = false;
 let queueDragInProgress = false;
 let lastQueueMoveFromDrag = false;
 
-// Icon helper (safe DOM SVG construction)
 const ICON_PATHS = {
   plus: ['M12 5v14M5 12h14'],
   next: ['M4 6h10M4 12h10M4 18h6M16 14l4 3-4 3v-6z'],
@@ -156,6 +151,20 @@ function saveName(value) {
   } catch {
     // storage unavailable
   }
+}
+
+function getByName(song) {
+  return typeof song?.by === 'string' && song.by.trim() ? song.by.trim() : '';
+}
+
+function createPanelState(message) {
+  const box = document.createElement('div');
+  box.className = 'panel-state';
+  const text = document.createElement('p');
+  text.className = 'panel-state-text';
+  text.textContent = message;
+  box.appendChild(text);
+  return box;
 }
 
 function getRequesterName() {
@@ -229,6 +238,13 @@ function setJoinError(message) {
   }
 }
 
+function setJoinBusy(busy) {
+  joiningRoom = busy;
+  pinInput.disabled = busy;
+  btnJoin.disabled = busy;
+  btnJoin.textContent = busy ? 'กำลังเข้าร่วม…' : 'เข้าร่วม';
+}
+
 async function submitJoin() {
   if (joiningRoom || !terminalState) return;
 
@@ -240,20 +256,14 @@ async function submitJoin() {
   }
 
   setJoinError('');
-  joiningRoom = true;
-  pinInput.disabled = true;
-  btnJoin.disabled = true;
-  btnJoin.textContent = 'กำลังเข้าร่วม…';
+  setJoinBusy(true);
 
   try {
     const joined = await joinRoom(digits);
     const saved = saveToken('g', joined?.guestToken);
     if (!saved) {
       setJoinError(JOIN_GENERIC_ERROR);
-      joiningRoom = false;
-      pinInput.disabled = false;
-      btnJoin.disabled = false;
-      btnJoin.textContent = 'เข้าร่วม';
+      setJoinBusy(false);
       pinInput.focus();
       return;
     }
@@ -262,10 +272,7 @@ async function submitJoin() {
     const code = err?.code;
     const message = JOIN_ERRORS[code] || JOIN_GENERIC_ERROR;
     setJoinError(message);
-    joiningRoom = false;
-    pinInput.disabled = false;
-    btnJoin.disabled = false;
-    btnJoin.textContent = 'เข้าร่วม';
+    setJoinBusy(false);
     if (code === 'no_such_pin') {
       pinInput.value = '';
     }
@@ -365,11 +372,8 @@ function enterTerminalState(reason) {
     joinDescEl.hidden = true;
   }
 
-  joiningRoom = false;
   pinInput.value = '';
-  pinInput.disabled = false;
-  btnJoin.disabled = false;
-  btnJoin.textContent = 'เข้าร่วม';
+  setJoinBusy(false);
   setJoinError('');
 
   joinCardEl.hidden = false;
@@ -414,22 +418,29 @@ function handleRoomInfo(info) {
   }
 }
 
+function handleTerminalError(err) {
+  if (
+    err?.status === 401 ||
+    err?.code === 'bad_token' ||
+    err?.code === 'stale_token' ||
+    err?.code === 'bad_key'
+  ) {
+    enterTerminalState('bad_key');
+    return true;
+  }
+  if (err?.status === 404 || err?.code === 'no_room') {
+    enterTerminalState('gone');
+    return true;
+  }
+  return false;
+}
+
 function sendCommand(cmd) {
   if (terminalState || !sync) return Promise.resolve(false);
   return sync.send(cmd).then(
     () => true,
     (err) => {
-      if (
-        err?.status === 401 ||
-        err?.code === 'bad_token' ||
-        err?.code === 'stale_token' ||
-        err?.code === 'bad_key'
-      ) {
-        enterTerminalState('bad_key');
-        return false;
-      }
-      if (err?.status === 404 || err?.code === 'no_room') {
-        enterTerminalState('gone');
+      if (handleTerminalError(err)) {
         return false;
       }
       if (err?.status === 409 || err?.code === 'queue_full') {
@@ -503,13 +514,11 @@ function renderNowBar() {
   const hasCurrent = Boolean(current);
 
   if (hasCurrent) {
-    nowBadgeEl.hidden = false;
     nowTitleEl.hidden = false;
     nowTitleEl.textContent = current.title;
-    const by = typeof current.by === 'string' && current.by.trim() ? current.by.trim() : '';
+    const by = getByName(current);
     nowSubEl.textContent = by ? `ขอโดย ${by}` : current.channel || '';
   } else {
-    nowBadgeEl.hidden = false;
     nowTitleEl.hidden = true;
     nowTitleEl.textContent = '';
     nowSubEl.textContent = 'ยังไม่มีเพลงกำลังเล่น';
@@ -556,12 +565,7 @@ function renderResultsPanel() {
   }
 
   if (searchStatus === 'error') {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'ค้นหาไม่สำเร็จ';
+    const box = createPanelState('ค้นหาไม่สำเร็จ');
 
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
@@ -574,30 +578,18 @@ function renderResultsPanel() {
       }
     });
 
-    box.append(text, retryBtn);
+    box.appendChild(retryBtn);
     panel.appendChild(box);
     return;
   }
 
   if (searchStatus === 'done' && searchResults.length === 0) {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'ไม่พบเพลง ลองพิมพ์ชื่อเพลงหรือชื่อศิลปินแบบอื่น';
-    box.appendChild(text);
-    panel.appendChild(box);
+    panel.appendChild(createPanelState('ไม่พบเพลง ลองพิมพ์ชื่อเพลงหรือชื่อศิลปินแบบอื่น'));
     return;
   }
 
   if (searchResults.length === 0) {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'พิมพ์ชื่อเพลงหรือศิลปิน ระบบจะเติม "คาราโอเกะ" ให้เอง';
-    box.appendChild(text);
-    panel.appendChild(box);
+    panel.appendChild(createPanelState('พิมพ์ชื่อเพลงหรือศิลปิน ระบบจะเติม "คาราโอเกะ" ให้เอง'));
     return;
   }
 
@@ -723,10 +715,7 @@ function renderQueuePanel() {
     const meta = document.createElement('p');
     meta.className = 'card-meta';
     const dur = state.current.duration || formatDuration(state.current.durationSec);
-    const by =
-      typeof state.current.by === 'string' && state.current.by.trim()
-        ? state.current.by.trim()
-        : '';
+    const by = getByName(state.current);
     const parts = [];
     if (state.current.channel) parts.push(state.current.channel);
     if (by) parts.push(`ขอโดย ${by}`);
@@ -753,18 +742,11 @@ function renderQueuePanel() {
   panel.appendChild(header);
 
   if (state.queue.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'คิวว่าง ค้นหาเพลงแล้วกดเข้าคิวได้เลย';
-    empty.appendChild(text);
-    panel.appendChild(empty);
+    panel.appendChild(createPanelState('คิวว่าง ค้นหาเพลงแล้วกดเข้าคิวได้เลย'));
     return;
   }
 
   const list = document.createElement('ol');
-  list.className = 'list';
 
   state.queue.forEach((item, index) => {
     const li = document.createElement('li');
@@ -788,7 +770,7 @@ function renderQueuePanel() {
     meta.className = 'card-meta';
     const duration = item.duration || formatDuration(item.durationSec);
 
-    const by = typeof item.by === 'string' && item.by.trim() ? item.by.trim() : '';
+    const by = getByName(item);
     if (by) {
       meta.textContent = `${duration} · ขอโดย ${by}`;
     } else if (item.channel) {
@@ -959,25 +941,12 @@ async function runSearch(rawQuery) {
     if (err?.name === 'AbortError') return;
     if (activeSearchController !== controller || terminalState) return;
     activeSearchController = null;
-    if (
-      err?.status === 401 ||
-      err?.code === 'bad_token' ||
-      err?.code === 'stale_token' ||
-      err?.code === 'bad_key'
-    ) {
-      enterTerminalState('bad_key');
-      return;
-    }
-    if (err?.status === 404 || err?.code === 'no_room') {
-      enterTerminalState('gone');
-      return;
-    }
+    if (handleTerminalError(err)) return;
     searchStatus = 'error';
     renderResultsPanel();
   }
 }
 
-// Event wiring
 joinForm.addEventListener('submit', (event) => {
   event.preventDefault();
   void submitJoin();
@@ -1051,7 +1020,6 @@ btnSkip.addEventListener('click', () => {
   }, SKIP_CONFIRM_MS);
 });
 
-// Bootstrap
 function init() {
   // A freshly scanned link opened in this same tab only changes the hash; reload to pick it up.
   window.addEventListener('hashchange', () => {
@@ -1083,13 +1051,9 @@ function init() {
       state = {
         current: snapshot?.current ?? null,
         queue: Array.isArray(snapshot?.queue) ? snapshot.queue : [],
-        history: Array.isArray(snapshot?.history) ? snapshot.history : [],
         playerState: typeof snapshot?.playerState === 'string' ? snapshot.playerState : 'idle',
       };
       renderAll();
-    },
-    onControl: () => {
-      // Remote page has no video player
     },
     onStatus: (status) => {
       updateConnectionStatus(status);

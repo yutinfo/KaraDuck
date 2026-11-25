@@ -51,14 +51,18 @@ async function fetchJson(url, { method, body: requestBody, signal, token } = {})
   return body;
 }
 
-export async function getConfig({ signal } = {}) {
-  const body = await fetchJson('/api/config', { signal });
+function assertObjectBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     const err = new Error('bad_response');
     err.code = 'bad_response';
     err.status = 200;
     throw err;
   }
+}
+
+export async function getConfig({ signal } = {}) {
+  const body = await fetchJson('/api/config', { signal });
+  assertObjectBody(body);
   return body;
 }
 
@@ -68,12 +72,7 @@ export async function createRoom(name, { signal } = {}) {
     body: { name },
     signal,
   });
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    const err = new Error('bad_response');
-    err.code = 'bad_response';
-    err.status = 200;
-    throw err;
-  }
+  assertObjectBody(body);
   return {
     roomId: typeof body.roomId === 'string' ? body.roomId : '',
     name: typeof body.name === 'string' ? body.name : '',
@@ -88,12 +87,7 @@ export async function joinRoom(pin, { signal } = {}) {
     body: { pin },
     signal,
   });
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    const err = new Error('bad_response');
-    err.code = 'bad_response';
-    err.status = 200;
-    throw err;
-  }
+  assertObjectBody(body);
   return {
     roomId: typeof body.roomId === 'string' ? body.roomId : '',
     name: typeof body.name === 'string' ? body.name : '',
@@ -113,12 +107,7 @@ export async function search(q, { signal, token } = {}) {
 
 export async function getRoom({ signal, token } = {}) {
   const body = await fetchJson('/api/room', { signal, token });
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    const err = new Error('bad_response');
-    err.code = 'bad_response';
-    err.status = 200;
-    throw err;
-  }
+  assertObjectBody(body);
 
   const room = {
     roomId: typeof body.roomId === 'string' ? body.roomId : '',

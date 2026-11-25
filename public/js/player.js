@@ -148,39 +148,23 @@ export function createPlayer({
     }
   }
 
+  function scheduleAction(type, id) {
+    if (!id) return;
+    pendingAction = { type, id };
+    if (ready && ytPlayer) {
+      applyPending();
+    } else {
+      void ensurePlayer();
+    }
+  }
+
   return {
     load(id) {
-      if (!id) return;
-      pendingAction = { type: 'load', id };
-      if (ready && ytPlayer) {
-        applyPending();
-      } else {
-        void ensurePlayer();
-      }
+      scheduleAction('load', id);
     },
 
     cue(id) {
-      if (!id) return;
-      pendingAction = { type: 'cue', id };
-      if (ready && ytPlayer) {
-        applyPending();
-      } else {
-        void ensurePlayer();
-      }
-    },
-
-    play() {
-      if (ready && ytPlayer) {
-        ytPlayer.playVideo();
-      } else if (pendingAction && pendingAction.type === 'cue') {
-        pendingAction = { type: 'load', id: pendingAction.id };
-      }
-    },
-
-    pause() {
-      if (ready && ytPlayer) {
-        ytPlayer.pauseVideo();
-      }
+      scheduleAction('cue', id);
     },
 
     toggle() {

@@ -1,12 +1,10 @@
-/* KaraDuck — โทนสีและชิ้นส่วนกลาง (glass + neon แนวเว็บดูหนัง)
-   เจ้าของ: หัวหน้า — ห้ามแก้ไฟล์นี้ ทั้งจอหลักและหน้ามือถือโหลดไฟล์นี้ก่อน stylesheet ของตัวเอง */
+/* KaraDuck — โทนสีและชิ้นส่วนกลาง โหลดก่อน stylesheet ของแต่ละหน้า */
 :root {
   --bg: #06050c;
   --text: #f5f3ff;
   --text-muted: #b3acd0;
 
   --neon-pink: #ff3d9a;
-  --neon-violet: #8b5cf6;
   --neon-cyan: #33e1ff;
   --gold: #ffd166;
 

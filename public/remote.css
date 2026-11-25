@@ -350,13 +350,11 @@ ul, ol { list-style: none; padding: 0; }
   font-size: 13px;
   text-align: center;
 }
-.r-status-full,
-.r-status-bad-key { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.r-status-full { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
 .r-bad-key-card { width: 100%; max-width: 420px; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
 .r-join-logo { width: 64px; height: 64px; flex: none; display: block; filter: drop-shadow(0 0 18px rgba(255,61,154,.4)); }
 .r-join-icon { display: flex; align-items: center; justify-content: center; }
 .r-bad-key-icon { color: var(--gold); }
-.r-status-no-token .r-bad-key-icon { color: var(--neon-cyan); }
 .r-status-gone .r-bad-key-icon { color: var(--neon-pink); }
 .r-join-title { font: 700 24px/1.3 var(--font-display); color: var(--text); }
 .r-join-desc { font-size: 15px; line-height: 1.5; color: var(--text-muted); }
@@ -401,8 +399,7 @@ ul, ol { list-style: none; padding: 0; }
 }
 .r-join-submit { width: 100%; height: 46px; font-size: 16px; }
 @media (max-height: 500px) {
-  .r-status-full,
-  .r-status-bad-key { padding: 12px 16px; }
+  .r-status-full { padding: 12px 16px; }
   .r-bad-key-card { padding: 16px 20px; gap: 8px; }
   .r-join-title { font-size: 20px; line-height: 1.25; }
   .r-join-desc { font-size: 13px; line-height: 1.35; }

@@ -211,13 +211,11 @@ export function createSync({
       }
       preflightController = null;
       if (err?.status === 401) {
-        stopped = true;
-        onStatus('bad_key');
+        terminate('bad_key');
         return;
       }
       if (err?.status === 404) {
-        stopped = true;
-        onStatus('gone');
+        terminate('gone');
         return;
       }
       onStatus('offline');

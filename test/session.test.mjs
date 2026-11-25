@@ -24,9 +24,6 @@ function makeStorage(initial = {}) {
     removeItem(k) {
       map.delete(k);
     },
-    dump() {
-      return Object.fromEntries(map);
-    },
   };
 }
 

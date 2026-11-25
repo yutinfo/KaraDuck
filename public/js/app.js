@@ -56,7 +56,6 @@ const initialTab =
     ? rawDemoTab
     : 'results';
 
-// DOM references
 const backdropEl = document.getElementById('backdrop');
 const appEl = document.getElementById('app');
 const roomNameEl = document.getElementById('room-name');
@@ -127,12 +126,10 @@ const panels = {
 const queueCountEl = document.getElementById('queue-count');
 const toastsEl = document.getElementById('toasts');
 
-// App runtime state
 let state = createState();
 let hasReceivedFirstSnapshot = false;
 let lastQid = null;
 let lastBackdropId = null;
-let activeTab = 'results';
 const embedFlags = new Map();
 let searchStatus = 'idle'; // 'idle' | 'loading' | 'done' | 'error'
 let searchResults = [];
@@ -186,7 +183,6 @@ const confirmArmed = {
   closeRoom: false,
 };
 
-// Icon helper (safe DOM SVG construction, no innerHTML)
 const ICON_PATHS = {
   plus: ['M12 5v14M5 12h14'],
   next: ['M5 5l10 7-10 7zM17 5h2v14h-2z'],
@@ -483,6 +479,24 @@ async function loadCreateRoomConfig() {
   }
 }
 
+function setCreateRoomBusy(busy) {
+  creatingRoom = busy;
+  createRoomNameInput.disabled = busy;
+  btnCreateRoom.disabled = busy;
+  btnCreateRoom.textContent = busy ? 'กำลังสร้าง…' : 'สร้างห้อง';
+}
+
+function getFullscreenEl() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function exitFullscreen() {
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (exit) {
+    Promise.resolve(exit.call(document)).catch(() => {});
+  }
+}
+
 async function handleCreateRoomSubmit(event) {
   event.preventDefault();
   if (creatingRoom || blockedReason !== 'no_token' || createRoomForm.hidden) return;
@@ -497,10 +511,7 @@ async function handleCreateRoomSubmit(event) {
   setCreateRoomError('');
   createRoomNoticeEl.textContent = '';
   createRoomNoticeEl.hidden = true;
-  creatingRoom = true;
-  createRoomNameInput.disabled = true;
-  btnCreateRoom.disabled = true;
-  btnCreateRoom.textContent = 'กำลังสร้าง…';
+  setCreateRoomBusy(true);
 
   try {
     const created = await createRoom(trimmedName);
@@ -508,10 +519,7 @@ async function handleCreateRoomSubmit(event) {
     const saved = saveToken('o', created?.ownerToken);
     if (!saved) {
       setCreateRoomError(CREATE_ROOM_GENERIC_ERROR);
-      creatingRoom = false;
-      createRoomNameInput.disabled = false;
-      btnCreateRoom.disabled = false;
-      btnCreateRoom.textContent = 'สร้างห้อง';
+      setCreateRoomBusy(false);
       return;
     }
     window.location.reload();
@@ -519,10 +527,7 @@ async function handleCreateRoomSubmit(event) {
     if (blockedReason !== 'no_token') return;
     const message = CREATE_ROOM_ERRORS[err?.code] || CREATE_ROOM_GENERIC_ERROR;
     setCreateRoomError(message);
-    creatingRoom = false;
-    createRoomNameInput.disabled = false;
-    btnCreateRoom.disabled = false;
-    btnCreateRoom.textContent = 'สร้างห้อง';
+    setCreateRoomBusy(false);
     if (err?.code === 'bad_name') {
       createRoomNameInput.focus();
     }
@@ -575,12 +580,8 @@ function enterBlockedGate(reason, { notice = '' } = {}) {
 
   syncStatusEl.hidden = true;
 
-  const fsEl = document.fullscreenElement || document.webkitFullscreenElement || null;
-  if (fsEl) {
-    const exit = document.exitFullscreen || document.webkitExitFullscreen;
-    if (exit) {
-      Promise.resolve(exit.call(document)).catch(() => {});
-    }
+  if (getFullscreenEl()) {
+    exitFullscreen();
   }
 
   const msg = GATE_MESSAGES[reason] || GATE_MESSAGES.bad_key;
@@ -597,10 +598,7 @@ function enterBlockedGate(reason, { notice = '' } = {}) {
     createRoomForm.hidden = false;
     createRoomDisabledEl.hidden = true;
     setCreateRoomError('');
-    creatingRoom = false;
-    createRoomNameInput.disabled = false;
-    btnCreateRoom.disabled = false;
-    btnCreateRoom.textContent = 'สร้างห้อง';
+    setCreateRoomBusy(false);
     if (notice) {
       createRoomNoticeEl.textContent = notice;
       createRoomNoticeEl.hidden = false;
@@ -951,7 +949,30 @@ function isInQueueOrCurrent(songId) {
   return state.queue.some((item) => item.id === songId);
 }
 
-function createPoster(song, { showInQueue = true, blocked = false } = {}) {
+function createPanelState(message) {
+  const box = document.createElement('div');
+  box.className = 'panel-state';
+  const text = document.createElement('p');
+  text.className = 'panel-state-text';
+  text.textContent = message;
+  box.appendChild(text);
+  return box;
+}
+
+function enqueueSong(song) {
+  const wasIdle = !state.current;
+  const nextPos = state.queue.length + 1;
+  void dispatch({ type: 'enqueue', song: toCommandSong(song) }).then((ok) => {
+    if (!ok) return;
+    if (wasIdle) {
+      showToast(`กำลังเล่น "${song.title}"`);
+    } else {
+      showToast(`เพิ่ม "${song.title}" เข้าคิวลำดับที่ ${nextPos}`);
+    }
+  });
+}
+
+function createPoster(song, { blocked = false } = {}) {
   const poster = document.createElement('div');
   poster.className = 'poster';
 
@@ -970,7 +991,7 @@ function createPoster(song, { showInQueue = true, blocked = false } = {}) {
     badge.className = 'pill is-warn poster-inq';
     badge.textContent = 'เล่นที่นี่ไม่ได้';
     poster.appendChild(badge);
-  } else if (showInQueue && isInQueueOrCurrent(song.id)) {
+  } else if (isInQueueOrCurrent(song.id)) {
     const badge = document.createElement('span');
     badge.className = 'pill is-cyan poster-inq';
     badge.textContent = 'ในคิวแล้ว';
@@ -1005,7 +1026,6 @@ function createQueueThumb(song) {
 }
 
 function setActiveTab(tabName) {
-  activeTab = tabName;
   for (const key of tabOrder) {
     const isSelected = key === tabName;
     tabs[key].setAttribute('aria-selected', String(isSelected));
@@ -1209,12 +1229,7 @@ function renderResultsPanel() {
   }
 
   if (searchStatus === 'error') {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'ค้นหาไม่สำเร็จ';
+    const box = createPanelState('ค้นหาไม่สำเร็จ');
 
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
@@ -1227,30 +1242,20 @@ function renderResultsPanel() {
       }
     });
 
-    box.append(text, retryBtn);
+    box.appendChild(retryBtn);
     panel.appendChild(box);
     return;
   }
 
   if (searchStatus === 'done' && searchResults.length === 0) {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'ไม่พบเพลง ลองพิมพ์ชื่อเพลงหรือชื่อศิลปินแบบอื่น';
-    box.appendChild(text);
-    panel.appendChild(box);
+    panel.appendChild(createPanelState('ไม่พบเพลง ลองพิมพ์ชื่อเพลงหรือชื่อศิลปินแบบอื่น'));
     return;
   }
 
   if (searchResults.length === 0) {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'พิมพ์ชื่อเพลงหรือศิลปินด้านบน ระบบจะเติม "คาราโอเกะ" ให้โดยอัตโนมัติ';
-    box.appendChild(text);
-    panel.appendChild(box);
+    panel.appendChild(
+      createPanelState('พิมพ์ชื่อเพลงหรือศิลปินด้านบน ระบบจะเติม "คาราโอเกะ" ให้โดยอัตโนมัติ')
+    );
     return;
   }
 
@@ -1276,7 +1281,7 @@ function renderResultsPanel() {
     const li = document.createElement('li');
     li.className = blocked ? 'tile is-blocked' : 'tile';
 
-    const poster = createPoster(song, { showInQueue: true, blocked });
+    const poster = createPoster(song, { blocked });
 
     const body = document.createElement('div');
     body.className = 'tbody';
@@ -1304,16 +1309,7 @@ function renderResultsPanel() {
     btnEnqueue.appendChild(enqText);
     btnEnqueue.addEventListener('click', () => {
       if (blocked) return;
-      const wasIdle = !state.current;
-      const nextPos = state.queue.length + 1;
-      void dispatch({ type: 'enqueue', song: toCommandSong(song) }).then((ok) => {
-        if (!ok) return;
-        if (wasIdle) {
-          showToast(`กำลังเล่น "${song.title}"`);
-        } else {
-          showToast(`เพิ่ม "${song.title}" เข้าคิวลำดับที่ ${nextPos}`);
-        }
-      });
+      enqueueSong(song);
     });
 
     const btnNext = document.createElement('button');
@@ -1492,13 +1488,7 @@ function renderQueuePanel() {
   panel.appendChild(header);
 
   if (state.queue.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'คิวว่าง ค้นหาเพลงแล้วกดเข้าคิวได้เลย';
-    empty.appendChild(text);
-    panel.appendChild(empty);
+    panel.appendChild(createPanelState('คิวว่าง ค้นหาเพลงแล้วกดเข้าคิวได้เลย'));
     return;
   }
 
@@ -1684,13 +1674,7 @@ function renderHistoryPanel() {
   panel.appendChild(header);
 
   if (state.history.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'ยังไม่มีเพลงที่ร้องไปแล้ว';
-    empty.appendChild(text);
-    panel.appendChild(empty);
+    panel.appendChild(createPanelState('ยังไม่มีเพลงที่ร้องไปแล้ว'));
     return;
   }
 
@@ -1701,7 +1685,7 @@ function renderHistoryPanel() {
     const li = document.createElement('li');
     li.className = 'tile tile-history';
 
-    const poster = createPoster(song, { showInQueue: true });
+    const poster = createPoster(song);
 
     const body = document.createElement('div');
     body.className = 'tbody';
@@ -1726,16 +1710,7 @@ function renderHistoryPanel() {
     label.textContent = 'เข้าคิว';
     btnRequeue.appendChild(label);
     btnRequeue.addEventListener('click', () => {
-      const wasIdle = !state.current;
-      const nextPos = state.queue.length + 1;
-      void dispatch({ type: 'enqueue', song: toCommandSong(song) }).then((ok) => {
-        if (!ok) return;
-        if (wasIdle) {
-          showToast(`กำลังเล่น "${song.title}"`);
-        } else {
-          showToast(`เพิ่ม "${song.title}" เข้าคิวลำดับที่ ${nextPos}`);
-        }
-      });
+      enqueueSong(song);
     });
 
     actions.appendChild(btnRequeue);
@@ -1752,12 +1727,7 @@ function renderRemotePanel() {
   panel.replaceChildren();
 
   if (isDemo) {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'โหมดตัวอย่าง — เปิดจากลิงก์ห้องเพื่อดู QR และลิงก์แขก';
-    box.appendChild(text);
+    const box = createPanelState('โหมดตัวอย่าง — เปิดจากลิงก์ห้องเพื่อดู QR และลิงก์แขก');
     const pinBox = createRemotePinBox(DEMO_PIN);
     if (pinBox) {
       box.appendChild(pinBox);
@@ -1768,13 +1738,7 @@ function renderRemotePanel() {
 
   const guestUrl = typeof roomInfo?.guestUrl === 'string' ? roomInfo.guestUrl : '';
   if (roomInfoStatus !== 'ready' || !guestUrl) {
-    const box = document.createElement('div');
-    box.className = 'panel-state';
-    const text = document.createElement('p');
-    text.className = 'panel-state-text';
-    text.textContent = 'กำลังโหลดข้อมูลห้อง…';
-    box.appendChild(text);
-    panel.appendChild(box);
+    panel.appendChild(createPanelState('กำลังโหลดข้อมูลห้อง…'));
     return;
   }
 
@@ -2024,7 +1988,6 @@ async function runSearch(rawQuery) {
   }
 }
 
-// Event wiring
 if (createRoomForm) {
   createRoomForm.addEventListener('submit', (event) => {
     void handleCreateRoomSubmit(event);
@@ -2090,7 +2053,6 @@ btnRetryPlayer.addEventListener('click', () => {
   armAutoplayCheck(state.current.qid);
 });
 
-// Fullscreen stage mode
 const fullscreenSupported = Boolean(
   document.fullscreenEnabled || document.webkitFullscreenEnabled
 );
@@ -2098,9 +2060,6 @@ const fullscreenSupported = Boolean(
 if (!fullscreenSupported) {
   btnStageMode.hidden = true;
 } else {
-  const getFullscreenEl = () =>
-    document.fullscreenElement || document.webkitFullscreenElement || null;
-
   const updateFullscreenUi = () => {
     const active = getFullscreenEl() === stageCol;
     document.body.classList.toggle('is-stage-fullscreen', active);
@@ -2111,10 +2070,7 @@ if (!fullscreenSupported) {
 
   btnStageMode.addEventListener('click', () => {
     if (getFullscreenEl()) {
-      const exit = document.exitFullscreen || document.webkitExitFullscreen;
-      if (exit) {
-        Promise.resolve(exit.call(document)).catch(() => {});
-      }
+      exitFullscreen();
     } else {
       const enter = stageCol.requestFullscreen || stageCol.webkitRequestFullscreen;
       if (enter) {
@@ -2127,7 +2083,6 @@ if (!fullscreenSupported) {
   document.addEventListener('webkitfullscreenchange', updateFullscreenUi);
 }
 
-// Keyboard shortcut: "/" focuses search input when not typing
 document.addEventListener('keydown', (event) => {
   if (blockedReason || event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) {
     return;
@@ -2147,7 +2102,6 @@ document.addEventListener('keydown', (event) => {
   searchInput.select();
 });
 
-// Initial bootstrap
 function init() {
   if (isDemo) {
     player = initPlayer();
