@@ -92,9 +92,17 @@ test('embed parser reads all three real escaped fixtures and ordinary JSON statu
   assert.equal(parseEmbedPlayability(embeds.unplayable), false);
   assert.equal(parseEmbedPlayability(embeds['owner-disabled']), false);
   assert.equal(parseEmbedPlayability('{"previewPlayabilityStatus":{"status":"OK","playableInEmbed":true}}'), true);
-  for (const status of ['LOGIN_REQUIRED', 'ERROR', 'UNPLAYABLE', '']) {
+  for (const status of ['ERROR', 'UNPLAYABLE', '']) {
     assert.equal(parseEmbedPlayability(JSON.stringify({ previewPlayabilityStatus: { status } })), false);
   }
+});
+
+test('a sign-in demand aimed at the server leaves the song unknown, in plain and escaped pages', () => {
+  const plain = JSON.stringify({
+    previewPlayabilityStatus: { status: 'LOGIN_REQUIRED', reason: 'Sign in to confirm you’re not a bot' },
+  });
+  assert.equal(parseEmbedPlayability(plain), null);
+  assert.equal(parseEmbedPlayability(JSON.stringify(plain)), null);
 });
 
 test('embed parser reads only the first status in the preview object, ignoring other objects and nested statuses', () => {
