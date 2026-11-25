@@ -1,0 +1,14 @@
+{
+  "name": "youtube-karaoke",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "คาราโอเกะจาก YouTube — ค้นหา เพิ่มคิว เล่นต่อเนื่อง",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,7 @@
+.codex-runs/
+.agy-runs/
+tasks/shots-*/
+node_modules/
+.DS_Store
+data/
+.vercel/

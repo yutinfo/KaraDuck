@@ -1,0 +1,203 @@
+/* ร้องเลย — โทนสีและชิ้นส่วนกลาง (glass + neon แนวเว็บดูหนัง)
+   เจ้าของ: หัวหน้า — ห้ามแก้ไฟล์นี้ ทั้งจอหลักและหน้ามือถือโหลดไฟล์นี้ก่อน stylesheet ของตัวเอง */
+:root {
+  --bg: #06050c;
+  --text: #f5f3ff;
+  --text-muted: #b3acd0;
+
+  --neon-pink: #ff3d9a;
+  --neon-violet: #8b5cf6;
+  --neon-cyan: #33e1ff;
+  --gold: #ffd166;
+
+  /* กระจกโทนมืด: ตัวอักษรต้องอ่านออกแม้ฉากหลังเป็นปกเพลงสีสว่าง */
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)), rgba(12, 10, 24, 0.5);
+  --glass-blur: blur(28px) saturate(1.4);
+  --glass-2: rgba(255, 255, 255, 0.10);
+  --glass-3: rgba(255, 255, 255, 0.16);
+  --line: rgba(255, 255, 255, 0.14);
+  --well: rgba(6, 5, 12, 0.45);            /* ช่องกรอก / ราง แท็บ */
+
+  --iris: linear-gradient(135deg, rgba(51, 225, 255, 0.85), rgba(139, 92, 246, 0.55) 35%, rgba(255, 61, 154, 0.85) 70%, rgba(255, 209, 102, 0.6));
+  --primary-grad: linear-gradient(135deg, #e11d74, #7c3aed);
+
+  --font-display: "Kanit", system-ui, "Thonburi", "Leelawadee UI", sans-serif;
+  --font-body: "Sarabun", system-ui, "Thonburi", "Leelawadee UI", sans-serif;
+}
+
+/* ---------- ฉากหลัง ---------- */
+/* .backdrop: ปกเพลงปัจจุบันเบลอ (JS ตั้ง background-image และ class is-on) · .orbs: แสงนีออน + ม่านมืด */
+.backdrop {
+  position: fixed;
+  inset: -12%;
+  z-index: 0;
+  background: center / cover no-repeat;
+  filter: blur(90px) saturate(1.7);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+.backdrop.is-on { opacity: 0.38; }
+.orbs {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 50% at 8% 0%, rgba(255, 61, 154, 0.30), transparent 70%),
+    radial-gradient(45% 55% at 100% 100%, rgba(51, 225, 255, 0.22), transparent 70%),
+    radial-gradient(35% 40% at 70% 0%, rgba(139, 92, 246, 0.25), transparent 70%),
+    linear-gradient(180deg, rgba(6, 5, 12, 0.35), rgba(6, 5, 12, 0.88));
+}
+
+/* ---------- กระจก ---------- */
+.glass {
+  position: relative;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+/* ขอบรุ้ง: ใส่คู่กับ element ที่มี position (relative/sticky/fixed) และ border-radius */
+.iris::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: var(--iris);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ---------- ปุ่ม ---------- */
+.btn-white,
+.btn-glass,
+.btn-neon,
+.btn-round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  color: var(--text);
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+/* ปุ่มเล่นหลักแบบเว็บดูหนัง: ขาว ตัวอักษรดำ */
+.btn-white {
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 12px;
+  background: #fff;
+  color: #0b0714;
+  font-weight: 700;
+  font-size: 17px;
+  box-shadow: 0 0 28px rgba(255, 255, 255, 0.25);
+}
+.btn-white:hover { background: #e9e4ff; }
+.btn-glass {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  font-weight: 600;
+  font-size: 15px;
+}
+.btn-glass:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(51, 225, 255, 0.7);
+  box-shadow: 0 0 22px rgba(51, 225, 255, 0.28);
+}
+/* ปุ่มนีออน: การกระทำหลักของรายการเพลง (เข้าคิว, ค้นหา) */
+.btn-neon {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--primary-grad);
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  box-shadow: 0 0 22px rgba(225, 29, 116, 0.45);
+}
+.btn-neon:hover { box-shadow: 0 0 30px rgba(225, 29, 116, 0.7); }
+/* ปุ่มกลมไอคอน */
+.btn-round {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.btn-round:hover { background: rgba(255, 255, 255, 0.24); border-color: #fff; }
+.btn-white.is-icon,
+.btn-glass.is-icon { width: 48px; padding: 0; }
+.btn-white:disabled,
+.btn-glass:disabled,
+.btn-neon:disabled,
+.btn-round:disabled { opacity: 0.38; cursor: not-allowed; box-shadow: none; }
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
+}
+
+/* ---------- ป้าย ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.pill.is-gold { color: var(--gold); border-color: rgba(255, 209, 102, 0.4); }
+.pill.is-warn { color: #1a1200; background: var(--gold); border-color: transparent; font-family: var(--font-display); font-weight: 600; box-shadow: 0 0 14px rgba(255, 209, 102, 0.5); }
+.pill.is-cyan { color: #04222a; background: var(--neon-cyan); border-color: transparent; font-family: var(--font-display); font-weight: 600; box-shadow: 0 0 14px rgba(51, 225, 255, 0.6); }
+
+/* ป้าย "กำลังร้อง" + แท่งเสียงเต้น (เต้นเฉพาะตอนมี class is-playing) */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--neon-pink);
+  font: 600 13px var(--font-display);
+  letter-spacing: 1.2px;
+  white-space: nowrap;
+}
+.eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+.eq i { width: 3px; border-radius: 2px; background: var(--neon-pink); box-shadow: 0 0 8px var(--neon-pink); transform-origin: bottom; }
+.eq i:nth-child(1) { height: 60%; }
+.eq i:nth-child(2) { height: 100%; }
+.eq i:nth-child(3) { height: 40%; }
+.is-playing .eq i { animation: eq-bounce 1s ease-in-out infinite; }
+.is-playing .eq i:nth-child(2) { animation-delay: 0.2s; }
+.is-playing .eq i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes eq-bounce { 50% { transform: scaleY(0.35); } }
+
+/* เลขอันดับคิวแบบโปร่งขอบทอง */
+.num-rank {
+  font: 800 44px/1 var(--font-display);
+  color: transparent;
+  -webkit-text-stroke: 2px var(--gold);
+  text-align: center;
+  filter: drop-shadow(0 0 10px rgba(255, 209, 102, 0.45));
+}
+.num-rank.is-long { font-size: 30px; -webkit-text-stroke-width: 1.5px; }   /* เลข 2 หลักขึ้นไป */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
