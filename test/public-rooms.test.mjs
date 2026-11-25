@@ -91,7 +91,9 @@ test('20 public creates exhaust the hour; the next clock hour permits another ro
   await expectError(await f.create(), 429, 'too_many_rooms');
   f.advance(3_600_000);
   assert.equal((await f.create()).status, 200);
-  assert.deepEqual(JSON.parse((await f.store.readMeta()).text), { createEnabled: true, hour: hourOf(f.now()), creates: 1 });
+  const { pins, ...meta } = JSON.parse((await f.store.readMeta()).text);
+  assert.equal(Object.keys(pins).length, 21);
+  assert.deepEqual(meta, { createEnabled: true, hour: hourOf(f.now()), creates: 1, join: { minute: 0, fails: 0 } });
 });
 
 test('expired rooms and usage are collected before the room count on public creation', async () => {
@@ -246,7 +248,7 @@ test('admin list collects expired rooms and includes limits, switch, timestamps 
   const response = await f.admin({ action: 'list' });
   assert.equal(response.status, 200);
   assert.deepEqual(value(response), { createEnabled: true, limits, rooms: [{ roomId: idOf(1), name: 'ยังอยู่', rev: 0, queueLength: 0,
-    current: 'ลูกอม', createdAt: f.now(), updatedAt: f.now() }] });
+    current: 'ลูกอม', createdAt: f.now(), updatedAt: f.now(), pin: null }] });
 });
 
 test('admin create bypasses room count, hourly ceiling and creation switch and stamps time', async () => {
@@ -269,7 +271,7 @@ test('public create retries meta ETag conflicts and commits meta before the room
   const f = setup({ store: { ...store, writeMeta: async (...args) => ++writes < 3 ? false : store.writeMeta(...args),
     writeQueue: async (...args) => { queueWrites++; assert.equal(JSON.parse((await store.readMeta()).text).creates, 1); return store.writeQueue(...args); } } });
   assert.equal((await f.create()).status, 200);
-  assert.equal(writes, 3);
+  assert.equal(writes, 4); // Three creation-budget attempts, then PIN allocation.
   assert.equal(queueWrites, 1);
 });
 
@@ -292,7 +294,7 @@ test('setCreate retries preserve concurrent counter changes and requires a boole
   await expectError(await f.admin({ action: 'setCreate', enabled: 'false' }), 400, 'bad_command');
   assert.equal((await f.admin({ action: 'setCreate', enabled: false })).status, 200);
   assert.equal(writes, 2);
-  assert.deepEqual(JSON.parse((await store.readMeta()).text), { createEnabled: false, hour: 10, creates: 7 });
+  assert.deepEqual(JSON.parse((await store.readMeta()).text), { createEnabled: false, hour: 10, creates: 7, pins: {}, join: { minute: 0, fails: 0 } });
 });
 
 test('concurrent public requests do not exceed the hourly allowance', async () => {

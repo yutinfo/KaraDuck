@@ -85,7 +85,7 @@ test('config อ่าน meta ไม่ได้ยังคืน cloud, URL �
 test('ขาด env บังคับแต่ละตัว ทุก route ได้ 503 โดยไม่อ่าน body/ไม่ fetch/ไม่ throw ตอนโหลด', async () => {
   for (const key of Object.keys(baseEnv).filter(key => key !== 'ADMIN_KEY')) {
     const env = { ...baseEnv, [key]: '' };
-    for (const name of ['config', 'room', 'rooms', 'command', 'search', 'embeddable', 'admin']) {
+    for (const name of ['config', 'room', 'rooms', 'join', 'command', 'search', 'embeddable', 'admin']) {
       const handler = webHandler(name, { env, fetchImpl: noFetch });
       const request = req(name, post({}));
       Object.defineProperty(request, 'body', { get: () => assert.fail('body read') });
@@ -129,7 +129,7 @@ test('body ขนาด 16KB พอดีผ่าน และ UTF-8 แบ่�
   const savedNames = [];
   const fetchImpl = async (url, init) => {
     if (url.includes('oauth2')) return json({ access_token: 'access', expires_in: 3600 });
-    savedNames.push(JSON.parse(JSON.parse(init.body)).name);
+    if (init.method === 'PUT' && url.includes('/rooms/')) savedNames.push(JSON.parse(JSON.parse(init.body)).name);
     return json(null);
   };
   const handler = webHandler('admin', { env: { ...baseEnv }, fetchImpl });
@@ -165,7 +165,8 @@ test('admin แปลง headers เป็นตัวเล็ก, lazy body, �
   const list = await webHandler('admin', { env, fetchImpl })(req('admin', post({ action: 'list' })));
   assert.equal(list.status, 200);
   assert.equal(calls.filter(c => c.url.includes('oauth2')).length, 1);
-  assert.equal(calls.filter(c => c.init.method === 'PUT').length, 2);
+  assert.equal(calls.filter(c => c.init.method === 'PUT' && c.url.includes('/rooms/')).length, 2);
+  assert.equal(calls.filter(c => c.init.method === 'PUT' && c.url.endsWith('/meta.json')).length, 2);
 });
 
 test('ส่ง pathname พร้อม query ให้ handler และ SEARCH_DISABLED ปิดทั้งสองเส้นทาง', async () => {
@@ -233,8 +234,8 @@ test('database.rules.json อนุญาตอ่านเฉพาะห้อ
     { rules: { '.read': false, '.write': false, rooms: { $room: { '.read': true } } } });
 });
 
-test('api มี 7 ไฟล์ เป็น thin wrappers ส่งออกเฉพาะเมธอดที่กำหนดและ import ไม่ throw', async () => {
-  const methods = { config: 'GET', room: 'GET', command: 'POST', search: 'GET', embeddable: 'GET', admin: 'POST', rooms: 'POST' };
+test('api มี 8 ไฟล์ เป็น thin wrappers ส่งออกเฉพาะเมธอดที่กำหนดและ import ไม่ throw', async () => {
+  const methods = { config: 'GET', room: 'GET', command: 'POST', search: 'GET', embeddable: 'GET', admin: 'POST', rooms: 'POST', join: 'POST' };
   assert.deepEqual((await readdir(new URL('../api/', import.meta.url))).sort(), Object.keys(methods).map(k => `${k}.js`).sort());
   for (const [name, method] of Object.entries(methods)) {
     const url = new URL(`../api/${name}.js`, import.meta.url);
@@ -269,10 +270,21 @@ test('public rooms web adapter creates through mocked RTDB and the returned owne
   assert.equal(created.ownerUrl, `https://public.test/#o=${created.ownerToken}`);
   assert.equal(JSON.parse(saved.get('/meta.json')).creates, 1);
   const writes = calls.filter(c => c.method === 'PUT');
-  assert.deepEqual(writes.map(c => new URL(c.url).pathname), ['/meta.json', `/rooms/${created.roomId}/q.json`]);
+  assert.deepEqual(writes.map(c => new URL(c.url).pathname), ['/meta.json', `/rooms/${created.roomId}/q.json`, '/meta.json']);
   const room = await webHandler('room', { env, fetchImpl })(req('room', { headers: { authorization: `Bearer ${created.ownerToken}` } }));
   assert.equal(room.status, 200);
-  assert.equal((await room.json()).role, 'o');
+  const owner = await room.json();
+  assert.equal(owner.role, 'o');
+  assert.match(owner.pin, /^\d{6}$/);
+  const joined = await webHandler('join', { env, fetchImpl })(req('join', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pin: owner.pin }),
+  }));
+  assert.equal(joined.status, 200);
+  const guest = await joined.json();
+  assert.equal(guest.roomId, created.roomId);
+  const guestRoom = await webHandler('room', { env, fetchImpl })(req('room', { headers: { authorization: `Bearer ${guest.guestToken}` } }));
+  assert.equal(guestRoom.status, 200);
+  assert.deepEqual(await guestRoom.json(), { roomId: created.roomId, name: 'บ้าน', role: 'g' });
   assert.equal((await webHandler('config', { env, fetchImpl })(req('config'))).status, 200);
   assert.equal(calls.filter(c => c.url.includes('oauth2')).length, 1);
 });
@@ -304,6 +316,23 @@ test('public rooms rejects advertised and streamed 16KB overflow without calling
   assert.deepEqual(await response.json(), { error: 'too_large' });
   let cancelled = false;
   const streamed = req('rooms', { ...publicPost, body: '{}' });
+  Object.defineProperty(streamed, 'body', { value: new ReadableStream({
+    pull(controller) { controller.enqueue(Buffer.alloc(16385)); }, cancel() { cancelled = true; },
+  }) });
+  assert.equal((await handler(streamed)).status, 413);
+  assert.equal(cancelled, true);
+  assert.equal(calls, 0);
+});
+
+test('join rejects advertised and streamed 16KB overflow without calling upstream', async () => {
+  let calls = 0;
+  const handler = webHandler('join', { env: { ...baseEnv }, fetchImpl: async () => { calls++; throw new Error('unexpected fetch'); } });
+  const post = { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' };
+  const advertised = req('join', { ...post, headers: { ...post.headers, 'content-length': '20000' } });
+  Object.defineProperty(advertised, 'body', { get: () => assert.fail('body read') });
+  assert.equal((await handler(advertised)).status, 413);
+  let cancelled = false;
+  const streamed = req('join', post);
   Object.defineProperty(streamed, 'body', { value: new ReadableStream({
     pull(controller) { controller.enqueue(Buffer.alloc(16385)); }, cancel() { cancelled = true; },
   }) });

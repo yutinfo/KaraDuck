@@ -135,3 +135,95 @@ for (const type of ['enqueue', 'enqueueNext', 'playNow', 'playFromQueue', 'moveT
     assert.equal(doc.createdAt, 100);
   });
 }
+
+const pinMeta = (pins = { '000001': roomId }) => ({ createEnabled: true, hour: 7, creates: 3,
+  pins, join: { minute: 12, fails: 4 }, extra: 'preserved' });
+
+test('rotateGuest commits q before atomically replacing every old PIN and preserves other meta', async () => {
+  const store = await setup();
+  const otherId = 'BCDEFGHJKLMNPQRS';
+  const initial = pinMeta({ '000001': roomId, '000002': roomId, '333333': otherId });
+  await store.writeMeta(JSON.stringify(initial), 'null_etag');
+  let writes = 0;
+  const tracked = { ...store, writeMeta: async (text, etag) => {
+    writes++;
+    assert.equal((await read(store)).guestEpoch, 2);
+    assert.deepEqual(JSON.parse(text), { ...initial, pins: { '444444': roomId, '333333': otherId } });
+    return store.writeMeta(text, etag);
+  } };
+  assert.equal((await run(tracked, { type: 'rotateGuest' }, owner, { makePin: () => '444444' })).status, 200);
+  assert.equal(writes, 1);
+});
+
+test('rotateGuest removes the old PIN if replacement generation exhausts 20 collisions', async () => {
+  const store = await setup();
+  await store.writeMeta(JSON.stringify(pinMeta()), 'null_etag');
+  let draws = 0;
+  const result = await run(store, { type: 'rotateGuest' }, owner, { makePin: () => { draws++; return '000001'; } });
+  assert.equal(result.status, 200);
+  assert.equal(draws, 20);
+  assert.deepEqual(JSON.parse((await store.readMeta()).text), pinMeta({}));
+  assert.equal((await read(store)).guestEpoch, 2);
+});
+
+test('rotateGuest falls back to deleting the old PIN when replacement writes throw', async () => {
+  const store = await setup();
+  await store.writeMeta(JSON.stringify(pinMeta()), 'null_etag');
+  let writes = 0;
+  const flaky = { ...store, writeMeta: async (text, etag) => {
+    writes++;
+    if (Object.keys(JSON.parse(text).pins).length) throw new Error('private');
+    return store.writeMeta(text, etag);
+  } };
+  assert.equal((await run(flaky, { type: 'rotateGuest' }, owner, { makePin: () => '000002' })).status, 200);
+  assert.equal(writes, 2);
+  assert.deepEqual(JSON.parse((await store.readMeta()).text).pins, {});
+});
+
+for (const method of ['readMeta', 'writeMeta']) {
+  test(`rotateGuest returns busy if ${method} prevents replacement and removal`, async () => {
+    const store = await setup();
+    await store.writeMeta(JSON.stringify(pinMeta()), 'null_etag');
+    const broken = { ...store, [method]: async () => { throw new Error('private'); } };
+    assert.deepEqual(await run(broken, { type: 'rotateGuest' }, owner, { makePin: () => '000002' }),
+      { status: 503, body: { error: 'busy' } });
+    assert.equal((await read(store)).guestEpoch, 2);
+    assert.deepEqual(JSON.parse((await store.readMeta()).text).pins, { '000001': roomId });
+  });
+}
+
+test('rotateGuest bounds ETag retries to five for replacement and five for cleanup', async () => {
+  const store = await setup();
+  await store.writeMeta(JSON.stringify(pinMeta()), 'null_etag');
+  let writes = 0;
+  const broken = { ...store, writeMeta: async () => { writes++; return false; } };
+  assert.deepEqual(await run(broken, { type: 'rotateGuest' }, owner, { makePin: () => '000002' }),
+    { status: 503, body: { error: 'busy' } });
+  assert.equal(writes, 10);
+});
+
+test('failed q write leaves PINs unchanged during rotateGuest', async () => {
+  const store = await setup();
+  await store.writeMeta(JSON.stringify(pinMeta()), 'null_etag');
+  const before = await store.readMeta();
+  const broken = { ...store, writeQueue: async () => false, writeMeta: () => assert.fail('PIN write before q committed') };
+  assert.deepEqual(await run(broken, { type: 'rotateGuest' }, owner), { status: 503, body: { error: 'busy' } });
+  assert.deepEqual(await store.readMeta(), before);
+});
+
+test('closeRoom retries cleanup conflicts while preserving concurrent PIN and budget updates', async () => {
+  const store = await setup();
+  await store.writeMeta(JSON.stringify(pinMeta()), 'null_etag');
+  let writes = 0;
+  const concurrent = { ...pinMeta({ '000001': roomId, '000002': 'BCDEFGHJKLMNPQRS' }), join: { minute: 12, fails: 5 } };
+  const tracked = { ...store, writeMeta: async (...args) => {
+    if (++writes === 1) {
+      const { etag } = await store.readMeta();
+      await store.writeMeta(JSON.stringify(concurrent), etag);
+    }
+    return store.writeMeta(...args);
+  } };
+  assert.equal((await run(tracked, { type: 'closeRoom' }, owner)).status, 200);
+  assert.equal(writes, 2);
+  assert.deepEqual(JSON.parse((await store.readMeta()).text), { ...concurrent, pins: { '000002': 'BCDEFGHJKLMNPQRS' } });
+});

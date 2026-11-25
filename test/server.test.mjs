@@ -330,3 +330,36 @@ test('local public route honors createDisabled and rejects both advertised and s
     req.destroy();
   }
 });
+
+test('local HTTP join accepts the owner PIN and returns a guest session without authorization', async t => {
+  const f = await setup(t);
+  const pin = value(await get(f, '/api/room')).pin;
+  assert.match(pin, /^\d{6}$/);
+  const handler = createRequestHandler(f.app);
+  const req = request('POST', '/api/join', { 'content-type': 'application/json' }), res = new Response();
+  const pending = handler(req, res);
+  req.end(JSON.stringify({ pin }));
+  await pending;
+  assert.equal(res.status, 200);
+  const joined = value(res);
+  assert.equal(joined.roomId, f.roomId);
+  const room = await f.app.handle({ method: 'GET', url: '/api/room', headers: { authorization: `Bearer ${joined.guestToken}` } });
+  assert.equal(room.status, 200);
+  assert.deepEqual(value(room), { roomId: f.roomId, name: 'บ้าน', role: 'g' });
+  secure(res.headers);
+});
+
+test('local HTTP join rejects advertised and streamed oversized bodies', async t => {
+  const f = await setup(t), handler = createRequestHandler(f.app);
+  for (const advertised of [true, false]) {
+    const req = request('POST', '/api/join', { 'content-type': 'application/json', ...(advertised ? { 'content-length': '20000' } : {}) });
+    const res = new Response();
+    const pending = handler(req, res);
+    if (!advertised) req.end(Buffer.alloc(16385));
+    await pending;
+    assert.equal(res.status, 413);
+    assert.deepEqual(value(res), { error: 'too_large' });
+    assert.equal(req.isPaused(), true);
+    req.destroy();
+  }
+});

@@ -87,6 +87,7 @@ test('room เจ้าของมี guestUrl โทเคนบทบาท g
   const r = value(await handlers.room(request('room', { role: 'o' })));
   assert.deepEqual(verifyToken(secret, new URL(r.guestUrl).hash.slice(3)), { roomId, role: 'g', epoch: 1 });
   assert.match(r.qrSvg, /<svg/);
+  assert.match(r.pin, /^\d{6}$/);
 });
 test('guestUrl ยาวเกิน QR ได้ qrSvg null', async () => {
   const { handlers } = await setup({ origin: () => `https://${'a'.repeat(150)}.test` });
@@ -102,7 +103,9 @@ test('admin สร้างห้อง ownerUrl เรียก room ได้'
   const data = value(created);
   assert.equal(data.roomId, nextId);
   const r = await handlers.room(request('room', { headers: { authorization: `Bearer ${new URL(data.ownerUrl).hash.slice(3)}` } }));
-  assert.deepEqual({ ...value(r), guestUrl: undefined, qrSvg: undefined }, { roomId: nextId, name: 'บ้านใหม่', role: 'o', guestUrl: undefined, qrSvg: undefined });
+  assert.match(value(r).pin, /^\d{6}$/);
+  const { guestUrl, qrSvg, pin, ...room } = value(r);
+  assert.deepEqual(room, { roomId: nextId, name: 'บ้านใหม่', role: 'o' });
 });
 test('rotateOwner ทำให้ลิงก์เก่าได้ stale_token และลิงก์ใหม่ใช้ได้', async () => {
   const { handlers } = await setup();
@@ -150,7 +153,7 @@ test('admin list/delete และชื่อ/action/roomId ที่ผิด�
   const doc = decodeRoomDoc((await store.readQueue(roomId)).text);
   assert.deepEqual(value(await handlers.admin(adminReq({ action: 'list' }))), { createEnabled: true,
     limits: { maxRooms: 30, createsPerHour: 20, idleHours: 24, searchesPerHour: 120 },
-    rooms: [{ roomId, name: 'บ้าน', rev: 0, queueLength: 0, current: null, createdAt: doc.createdAt, updatedAt: doc.updatedAt }] });
+    rooms: [{ roomId, name: 'บ้าน', rev: 0, queueLength: 0, current: null, createdAt: doc.createdAt, updatedAt: doc.updatedAt, pin: null }] });
   for (const body of [{ action: 'create', name: ' ' }, { action: 'wrong' }, { action: 'delete', roomId: '../bad' }]) {
     assert.equal((await handlers.admin(adminReq(body))).status, 400);
   }
