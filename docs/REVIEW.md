@@ -24,7 +24,7 @@
 | A8 | กลาง | ไม่มี CSP/nosniff/frame-ancestors เสี่ยงถูกครอบด้วย iframe หลอกให้กด | **แก้แล้ว** — `lib/security-headers.mjs`, `vercel.json`, `server.mjs` ตั้ง CSP แยกหน้า admin, nosniff, referrer policy และ frame-ancestors none |
 | A9 | กลาง | อ่าน POST body ก่อนตรวจสิทธิ์ ผู้ไม่มีรหัสยึดการเชื่อมต่อด้วย body ช้าได้ | **แก้แล้ว** — `server.mjs` และ `lib/vercel.mjs` อ่าน body แบบ lazy หลังตรวจ Bearer signature; `lib/handlers.mjs` จำกัด 16 KiB ข้อจำกัด: command ตรวจ epoch/ห้องหลัง parseBody และไม่มี timeout อ่าน body เฉพาะของแอป |
 | A10 | กลาง | ไฟล์สถานะพังถูกทับเมื่อเริ่มใหม่ บันทึกล้มเหลวเงียบ | **แก้แล้ว** — `lib/store-file.mjs` ย้ายไฟล์ที่อ่าน/ถอดไม่ได้ไป .bad-เวลา เขียน temp แล้ว rename ก่อนเปลี่ยนหน่วยความจำ เขียนไม่สำเร็จให้ error; handlers คืน store_failed ไม่รายงานสำเร็จเงียบ |
-| A11 | ต่ำ | ไฟล์ภาพร่างถูกเสิร์ฟจาก public | **แก้แล้ว** — อยู่ใน `docs/mockups/` นอก public; `lib/static.mjs` ตรวจ path/realpath และ Vercel เสิร์ฟ `public` |
+| A11 | ต่ำ | ไฟล์ภาพร่างถูกเสิร์ฟจาก public | **แก้แล้ว** — ภาพร่างถูกลบออกจาก repo แล้ว; `lib/static.mjs` ตรวจ path/realpath และ Vercel เสิร์ฟ `public` |
 | A12 | — | ช่องทางค้นหา InnerTube และดึงหน้า embed ไม่เป็นทางการ เสี่ยงข้อตกลงและ IP ศูนย์ข้อมูลถูกจำกัด | **ยังไม่แก้** — `lib/youtube.mjs` ยังใช้ช่องทางเดิม ต้องติดตามการใช้งานและซ้อมจริง ไม่มี Data API สำรอง |
 
 มาตรการที่ยังมี: ตรวจก่อนสร้าง thumbnail จาก id ฝั่งเซิร์ฟเวอร์ (`public/js/commands.js`) คำขอขาออกมีปลายทางคงที่และ timeout (`lib/youtube.mjs`, `lib/store-rtdb.mjs`, `lib/google-auth.mjs`) ไฟล์ข้อมูลใช้สิทธิ์ 0600 และ API ไม่ส่ง stack trace

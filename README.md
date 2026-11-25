@@ -132,7 +132,7 @@ public/                HTML CSS โลโก้ และ JavaScript ไม่�
   js/admin-view.js     ตรรกะแสดงรายการผู้ดูแล
 tools/                 setup.mjs และ room.mjs
 test/                  Node test runner และ fixtures
-docs/                  สัญญา รีวิว แบบระบบ และ mockups
+docs/                  สัญญา รีวิว แบบระบบ และคู่มือ
 design/                ไฟล์งานออกแบบโลโก้
 database.rules.json    กฎ Realtime Database
 vercel.json            การตั้งค่า deploy และ headers
